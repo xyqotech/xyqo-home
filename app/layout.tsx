@@ -1,7 +1,9 @@
-import './globals.css';
-import { ReactNode } from 'react';
+import type { Metadata } from "next";
+import { ReactNode } from "react";
+import "./globals.css";
+import "./styles/themes.css";
 
-export const metadata = {
+export const metadata: Metadata = {
   title: 'Xyqo.ai',
   description: 'Automation made simple.',
 };
