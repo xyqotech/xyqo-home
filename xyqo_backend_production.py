@@ -39,6 +39,9 @@ except ImportError:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# In-memory PDF cache (in production, use Redis or database)
+pdf_cache = {}
+
 # Initialize FastAPI app
 app = FastAPI(
     title="XYQO Contract Reader API",
@@ -58,56 +61,45 @@ app.add_middleware(
 # OpenAI configuration
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-# UniversalContractV3 Schema
-UNIVERSAL_CONTRACT_SCHEMA = {
-    "contract": {
-        "title": "string",
-        "object": "string",
-        "type": "string",
-        "language": "string",
-        "date_signed": "string",
-        "effective_date": "string",
-        "expiration_date": "string",
-        "data_privacy": {
-            "rgpd": "boolean",
-            "data_processing": "string",
-            "retention_period": "string"
+# Nouveau schéma JSON contractuel professionnel
+CONTRACT_JSON_SCHEMA = {
+    "executive_summary": "Résumé en 10–20 lignes",
+    "parties": [
+        {
+            "name": "string",
+            "role": "CLIENT ou PRESTATAIRE",
+            "legal_form": "string",
+            "siren_siret": "string",
+            "address": "string",
+            "representative": "string"
         }
-    },
-    "parties": {
-        "count": "integer",
-        "list": [
-            {
-                "name": "string",
-                "role": "string",
-                "type": "string",
-                "address": "string",
-                "siret": "string",
-                "representative": "string"
-            }
-        ]
-    },
-    "financial": {
-        "amount": "string",
-        "currency": "string",
-        "payment_terms": "string",
-        "penalties": "string"
-    },
-    "governance": {
-        "law": "string",
-        "jurisdiction": "string",
-        "dispute_resolution": "string"
+    ],
+    "details": {
+        "object": "string",
+        "location": "string",
+        "start_date": "YYYY-MM-DD ou null",
+        "end_date": "YYYY-MM-DD ou null",
+        "minimum_duration": "nombre de mois ou null",
+        "notice_period": "nombre de jours ou null"
     },
     "obligations": {
-        "main_obligations": ["string"],
-        "deliverables": ["string"],
-        "deadlines": ["string"]
+        "provider": ["string"],
+        "client": ["string"]
     },
-    "risks_red_flags": ["string"],
-    "termination": {
-        "conditions": ["string"],
-        "notice_period": "string"
-    }
+    "financials": {
+        "pricing_model": "forfait | abonnement | à_l_acte | mixte | inconnu",
+        "payment_terms": "string",
+        "amounts": [{"label": "string", "amount": 0, "currency": "EUR"}]
+    },
+    "governance": {
+        "applicable_law": "string",
+        "jurisdiction": "string",
+        "liability": "string",
+        "confidentiality": "boolean ou null"
+    },
+    "risks": ["string"],
+    "missing_info": ["string"],
+    "legal_warning": "Ce résumé est informatif, ne constitue pas un conseil juridique et peut contenir des erreurs."
 }
 
 def extract_pdf_text(pdf_content: bytes) -> str:
@@ -123,26 +115,65 @@ def extract_pdf_text(pdf_content: bytes) -> str:
         raise HTTPException(status_code=400, detail="Impossible de lire le fichier PDF")
 
 def analyze_contract_with_openai(contract_text: str) -> Dict[str, Any]:
-    """Analyze contract using OpenAI GPT-4o-mini"""
+    """Analyze contract using OpenAI GPT-4o-mini with new professional schema"""
     try:
-        prompt = f"""
-Analysez ce contrat en français et extrayez les informations selon le schéma JSON UniversalContractV3.
-Soyez précis et complet. Si une information n'est pas disponible, utilisez "Non spécifié".
+        system_prompt = """Tu es un assistant juridique expert en contrats français.  
+Ton objectif : produire un résumé contractuel complet, en JSON STRICT, prêt à être converti en PDF.  
+Contraintes : 
+- Réponds uniquement en JSON valide UTF-8, aucune phrase hors JSON.  
+- Respecte exactement la structure ci-dessous.  
+- Dates en ISO 8601 (YYYY-MM-DD). Montants en nombre + devise ISO 4217.  
+- Si une donnée est absente, mets `null` ou [].  
+- Le champ `executive_summary` doit être 10–20 lignes en français clair, compréhensible pour un non-juriste.  
+- Masque IBAN, e-mail, téléphone dans les textes.  
+- Ne jamais inventer : si tu n'es pas sûr, retourne `null`."""
 
-Contrat à analyser:
-{contract_text[:8000]}  # Limit to avoid token limits
+        user_prompt = f"""Analyse ce contrat et fournis STRICTEMENT ce JSON :
 
-Répondez UNIQUEMENT avec un JSON valide suivant cette structure:
-{json.dumps(UNIVERSAL_CONTRACT_SCHEMA, indent=2)}
-"""
+{{
+  "executive_summary": "Résumé en 10–20 lignes",
+  "parties": [
+    {{"name": "...", "role": "CLIENT ou PRESTATAIRE", "legal_form": "...", "siren_siret": "...", "address": "...", "representative": "..."}}
+  ],
+  "details": {{
+    "object": "...",
+    "location": "...",
+    "start_date": "YYYY-MM-DD ou null",
+    "end_date": "YYYY-MM-DD ou null",
+    "minimum_duration": "nombre de mois ou null",
+    "notice_period": "nombre de jours ou null"
+  }},
+  "obligations": {{
+    "provider": ["..."],
+    "client": ["..."]
+  }},
+  "financials": {{
+    "pricing_model": "forfait | abonnement | à_l_acte | mixte | inconnu",
+    "payment_terms": "...",
+    "amounts": [{{"label": "...", "amount": 0, "currency": "EUR"}}]
+  }},
+  "governance": {{
+    "applicable_law": "...",
+    "jurisdiction": "...",
+    "liability": "...",
+    "confidentiality": true/false/null
+  }},
+  "risks": ["..."],
+  "missing_info": ["..."],
+  "legal_warning": "Ce résumé est informatif, ne constitue pas un conseil juridique et peut contenir des erreurs."
+}}
+
+<contract_text>
+{contract_text[:12000]}
+</contract_text>"""
 
         response = openai.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "Vous êtes un expert juridique spécialisé dans l'analyse de contrats. Répondez uniquement en JSON valide."},
-                {"role": "user", "content": prompt}
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
             ],
-            max_tokens=2000,
+            max_tokens=3000,
             temperature=0.1
         )
         
@@ -155,6 +186,13 @@ Répondez UNIQUEMENT avec un JSON valide suivant cette structure:
             analysis_text = analysis_text[:-3]
         
         analysis = json.loads(analysis_text)
+        
+        # Validate required fields
+        if not analysis.get("executive_summary"):
+            analysis["executive_summary"] = "Résumé automatique indisponible - analyse en cours."
+        if not analysis.get("legal_warning"):
+            analysis["legal_warning"] = "Ce résumé est informatif, ne constitue pas un conseil juridique et peut contenir des erreurs."
+            
         return analysis
         
     except json.JSONDecodeError as e:
@@ -167,52 +205,41 @@ Répondez UNIQUEMENT avec un JSON valide suivant cette structure:
 def create_fallback_analysis() -> Dict[str, Any]:
     """Create fallback analysis when OpenAI fails"""
     return {
-        "contract": {
-            "title": "Contrat Commercial - Analyse Simplifiée",
+        "executive_summary": "Analyse automatique indisponible. Ce contrat nécessite une révision manuelle par un expert juridique pour identifier les clauses principales, les obligations des parties, les aspects financiers et les risques potentiels. Veuillez consulter un professionnel du droit pour une analyse complète et des conseils adaptés à votre situation spécifique.",
+        "parties": [
+            {"name": "Partie A", "role": "PRESTATAIRE", "legal_form": null, "siren_siret": null, "address": null, "representative": null},
+            {"name": "Partie B", "role": "CLIENT", "legal_form": null, "siren_siret": null, "address": null, "representative": null}
+        ],
+        "details": {
             "object": "Prestation de services",
-            "type": "Service Agreement",
-            "language": "Français",
-            "date_signed": "Non spécifié",
-            "effective_date": "Non spécifié",
-            "expiration_date": "Non spécifié",
-            "data_privacy": {
-                "rgpd": True,
-                "data_processing": "Conforme RGPD",
-                "retention_period": "Non spécifié"
-            }
-        },
-        "parties": {
-            "count": 2,
-            "list": [
-                {"name": "Entreprise A", "role": "Prestataire", "type": "Société", "address": "Non spécifié", "siret": "Non spécifié", "representative": "Non spécifié"},
-                {"name": "Entreprise B", "role": "Client", "type": "Société", "address": "Non spécifié", "siret": "Non spécifié", "representative": "Non spécifié"}
-            ]
-        },
-        "financial": {
-            "amount": "Non spécifié",
-            "currency": "EUR",
-            "payment_terms": "30 jours",
-            "penalties": "Non spécifié"
-        },
-        "governance": {
-            "law": "Droit français",
-            "jurisdiction": "Tribunaux français",
-            "dispute_resolution": "Négociation puis tribunal"
+            "location": null,
+            "start_date": null,
+            "end_date": null,
+            "minimum_duration": null,
+            "notice_period": null
         },
         "obligations": {
-            "main_obligations": ["Prestation de services", "Paiement"],
-            "deliverables": ["Services convenus"],
-            "deadlines": ["Selon planning"]
+            "provider": ["Fourniture des services convenus"],
+            "client": ["Paiement des services"]
         },
-        "risks_red_flags": ["Analyse automatique indisponible"],
-        "termination": {
-            "conditions": ["Résiliation pour faute", "Résiliation de convenance"],
-            "notice_period": "30 jours"
-        }
+        "financials": {
+            "pricing_model": "inconnu",
+            "payment_terms": "Non spécifié",
+            "amounts": []
+        },
+        "governance": {
+            "applicable_law": "Droit français",
+            "jurisdiction": "Tribunaux compétents",
+            "liability": "Non spécifié",
+            "confidentiality": null
+        },
+        "risks": ["Analyse automatique indisponible - révision manuelle requise"],
+        "missing_info": ["Montants financiers", "Dates contractuelles", "Obligations spécifiques", "Clauses de résiliation"],
+        "legal_warning": "Ce résumé est informatif, ne constitue pas un conseil juridique et peut contenir des erreurs."
     }
 
 def generate_pdf_report(analysis: Dict[str, Any], processing_id: str) -> bytes:
-    """Generate professional PDF report"""
+    """Generate professional PDF report with new schema"""
     if not REPORTLAB_AVAILABLE:
         return generate_text_fallback(analysis, processing_id)
     
@@ -243,6 +270,19 @@ def generate_pdf_report(analysis: Dict[str, Any], processing_id: str) -> bytes:
             backColor=colors.HexColor('#f8fafc')
         )
         
+        summary_style = ParagraphStyle(
+            'SummaryStyle',
+            parent=styles['Normal'],
+            fontSize=11,
+            spaceAfter=12,
+            leftIndent=20,
+            rightIndent=20,
+            backColor=colors.HexColor('#f9fafb'),
+            borderWidth=1,
+            borderColor=colors.HexColor('#e5e7eb'),
+            borderPadding=10
+        )
+        
         # Content
         story = []
         
@@ -251,13 +291,22 @@ def generate_pdf_report(analysis: Dict[str, Any], processing_id: str) -> bytes:
         story.append(Paragraph(f"XYQO Contract Reader - {datetime.now().strftime('%d/%m/%Y %H:%M')}", styles['Normal']))
         story.append(Spacer(1, 20))
         
-        # Contract Info
-        story.append(Paragraph("INFORMATIONS GÉNÉRALES", heading_style))
+        # Executive Summary
+        story.append(Paragraph("RÉSUMÉ EXÉCUTIF", heading_style))
+        executive_summary = analysis.get('executive_summary', 'Résumé non disponible')
+        story.append(Paragraph(executive_summary, summary_style))
+        story.append(Spacer(1, 20))
+        
+        # Contract Details
+        story.append(Paragraph("DÉTAILS DU CONTRAT", heading_style))
+        details = analysis.get('details', {})
         contract_info = [
-            ['Objet:', analysis.get('contract', {}).get('object', 'Non spécifié')],
-            ['Type:', analysis.get('contract', {}).get('type', 'Non spécifié')],
-            ['Langue:', analysis.get('contract', {}).get('language', 'Non spécifié')],
-            ['Date signature:', analysis.get('contract', {}).get('date_signed', 'Non spécifié')],
+            ['Objet:', details.get('object', 'Non spécifié')],
+            ['Lieu:', details.get('location', 'Non spécifié')],
+            ['Date début:', details.get('start_date', 'Non spécifié')],
+            ['Date fin:', details.get('end_date', 'Non spécifié')],
+            ['Durée minimale:', f"{details.get('minimum_duration', 'Non spécifié')} mois" if details.get('minimum_duration') else 'Non spécifié'],
+            ['Préavis:', f"{details.get('notice_period', 'Non spécifié')} jours" if details.get('notice_period') else 'Non spécifié'],
         ]
         
         table = Table(contract_info, colWidths=[2*inch, 4*inch])
@@ -275,33 +324,85 @@ def generate_pdf_report(analysis: Dict[str, Any], processing_id: str) -> bytes:
         
         # Parties
         story.append(Paragraph("PARTIES CONTRACTUELLES", heading_style))
-        parties = analysis.get('parties', {}).get('list', [])
+        parties = analysis.get('parties', [])
         for i, party in enumerate(parties):
             story.append(Paragraph(f"<b>Partie {i+1}: {party.get('name', 'Non spécifié')}</b>", styles['Normal']))
             story.append(Paragraph(f"Rôle: {party.get('role', 'Non spécifié')}", styles['Normal']))
-            story.append(Paragraph(f"Type: {party.get('type', 'Non spécifié')}", styles['Normal']))
+            story.append(Paragraph(f"Forme juridique: {party.get('legal_form', 'Non spécifié')}", styles['Normal']))
+            if party.get('siren_siret'):
+                story.append(Paragraph(f"SIREN/SIRET: {party.get('siren_siret')}", styles['Normal']))
+            if party.get('representative'):
+                story.append(Paragraph(f"Représentant: {party.get('representative')}", styles['Normal']))
             story.append(Spacer(1, 10))
+        
+        # Obligations
+        story.append(Paragraph("OBLIGATIONS", heading_style))
+        obligations = analysis.get('obligations', {})
+        
+        if obligations.get('provider'):
+            story.append(Paragraph("<b>Obligations du prestataire:</b>", styles['Normal']))
+            for obligation in obligations.get('provider', []):
+                story.append(Paragraph(f"• {obligation}", styles['Normal']))
+            story.append(Spacer(1, 10))
+        
+        if obligations.get('client'):
+            story.append(Paragraph("<b>Obligations du client:</b>", styles['Normal']))
+            for obligation in obligations.get('client', []):
+                story.append(Paragraph(f"• {obligation}", styles['Normal']))
+            story.append(Spacer(1, 15))
         
         # Financial
         story.append(Paragraph("ASPECTS FINANCIERS", heading_style))
-        financial = analysis.get('financial', {})
-        story.append(Paragraph(f"<b>Montant:</b> {financial.get('amount', 'Non spécifié')}", styles['Normal']))
-        story.append(Paragraph(f"<b>Devise:</b> {financial.get('currency', 'Non spécifié')}", styles['Normal']))
-        story.append(Paragraph(f"<b>Conditions paiement:</b> {financial.get('payment_terms', 'Non spécifié')}", styles['Normal']))
+        financials = analysis.get('financials', {})
+        story.append(Paragraph(f"<b>Modèle tarifaire:</b> {financials.get('pricing_model', 'Non spécifié')}", styles['Normal']))
+        story.append(Paragraph(f"<b>Conditions de paiement:</b> {financials.get('payment_terms', 'Non spécifié')}", styles['Normal']))
+        
+        amounts = financials.get('amounts', [])
+        if amounts:
+            story.append(Paragraph("<b>Montants:</b>", styles['Normal']))
+            for amount in amounts:
+                story.append(Paragraph(f"• {amount.get('label', 'Montant')}: {amount.get('amount', 0)} {amount.get('currency', 'EUR')}", styles['Normal']))
+        story.append(Spacer(1, 15))
+        
+        # Governance
+        story.append(Paragraph("GOUVERNANCE", heading_style))
+        governance = analysis.get('governance', {})
+        story.append(Paragraph(f"<b>Droit applicable:</b> {governance.get('applicable_law', 'Non spécifié')}", styles['Normal']))
+        story.append(Paragraph(f"<b>Juridiction:</b> {governance.get('jurisdiction', 'Non spécifié')}", styles['Normal']))
+        story.append(Paragraph(f"<b>Responsabilité:</b> {governance.get('liability', 'Non spécifié')}", styles['Normal']))
+        confidentiality = governance.get('confidentiality')
+        if confidentiality is not None:
+            story.append(Paragraph(f"<b>Confidentialité:</b> {'Oui' if confidentiality else 'Non'}", styles['Normal']))
         story.append(Spacer(1, 15))
         
         # Risks
-        risks = analysis.get('risks_red_flags', [])
+        risks = analysis.get('risks', [])
         if risks:
             story.append(Paragraph("FACTEURS DE RISQUE", heading_style))
             for risk in risks:
                 story.append(Paragraph(f"• {risk}", styles['Normal']))
             story.append(Spacer(1, 15))
         
+        # Missing Info
+        missing_info = analysis.get('missing_info', [])
+        if missing_info:
+            story.append(Paragraph("INFORMATIONS MANQUANTES", heading_style))
+            for info in missing_info:
+                story.append(Paragraph(f"• {info}", styles['Normal']))
+            story.append(Spacer(1, 15))
+        
+        # Legal Warning
+        legal_warning = analysis.get('legal_warning', '')
+        if legal_warning:
+            story.append(Paragraph("AVERTISSEMENT JURIDIQUE", heading_style))
+            story.append(Paragraph(legal_warning, summary_style))
+            story.append(Spacer(1, 15))
+        
         # Footer
         story.append(Spacer(1, 30))
         story.append(Paragraph("Rapport généré par XYQO Contract Reader", styles['Normal']))
         story.append(Paragraph(f"ID de traitement: {processing_id}", styles['Normal']))
+        story.append(Paragraph(f"Date de génération: {datetime.now().strftime('%d/%m/%Y à %H:%M')}", styles['Normal']))
         
         doc.build(story)
         buffer.seek(0)
@@ -383,6 +484,9 @@ async def analyze_contract(file: UploadFile = File(...)):
         processing_time = (datetime.now() - start_time).total_seconds()
         cost_euros = 0.01  # Estimated cost
         
+        # Store PDF content in memory for download (in production, use Redis or database)
+        pdf_cache[processing_id] = pdf_content
+        
         return {
             "success": True,
             "analysis": analysis,
@@ -406,14 +510,22 @@ async def analyze_contract(file: UploadFile = File(...)):
 async def download_pdf(processing_id: str):
     """Download generated PDF report"""
     try:
-        # For demo, generate a simple PDF
-        analysis = create_fallback_analysis()
-        pdf_content = generate_pdf_report(analysis, processing_id)
+        # Get PDF from cache
+        pdf_content = pdf_cache.get(processing_id)
+        
+        if not pdf_content:
+            # If not in cache, generate fallback PDF
+            logger.warning(f"PDF not found in cache for ID: {processing_id}")
+            analysis = create_fallback_analysis()
+            pdf_content = generate_pdf_report(analysis, processing_id)
         
         return Response(
             content=pdf_content,
             media_type="application/pdf",
-            headers={"Content-Disposition": f"attachment; filename=rapport_{processing_id}.pdf"}
+            headers={
+                "Content-Disposition": f"attachment; filename=rapport_contrat_{processing_id}.pdf",
+                "Content-Type": "application/pdf"
+            }
         )
         
     except Exception as e:
