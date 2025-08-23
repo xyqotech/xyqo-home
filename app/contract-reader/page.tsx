@@ -5,11 +5,18 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 interface AnalysisResult {
   success: boolean;
-  summary: any;
-  processing_time: number;
-  cost_euros: number;
-  pdf_download_url: string;
-  processing_id: string;
+  analysis?: any;
+  summary?: any;
+  metadata?: {
+    filename: string;
+    analysis_id: string;
+    download_url: string;
+    processed_at: string;
+  };
+  processing_id?: string;
+  pdf_download_url?: string;
+  processing_time?: number;
+  cost_euros?: number;
 }
 
 interface UploadState {
@@ -70,6 +77,8 @@ export default function ContractReaderPage() {
   }, []);
 
   const handleFileUpload = async (file: File) => {
+    console.log('🔄 Début upload fichier:', file.name, file.size, 'bytes');
+    
     setUploadState(prev => ({ 
       ...prev, 
       isUploading: true, 
@@ -79,11 +88,13 @@ export default function ContractReaderPage() {
       result: null 
     }));
 
+    let timeoutId: NodeJS.Timeout | null = null;
+
     try {
       // Simulation du progress d'upload
       for (let i = 0; i <= 100; i += 10) {
         setUploadState(prev => ({ ...prev, progress: i }));
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 50));
       }
 
       setUploadState(prev => ({ 
@@ -93,19 +104,44 @@ export default function ContractReaderPage() {
         progress: 0 
       }));
 
-      // Appel API
+      // Appel API avec debug
       const formData = new FormData();
       formData.append('file', file);
-      const response = await fetch('http://localhost:8000/api/v1/contract/analyze', {
+      
+      const apiUrl = 'https://xyqo-backend-production.up.railway.app';
+      console.log('🌐 URL API:', apiUrl);
+      console.log('📤 Envoi vers:', `${apiUrl}/api/v1/contract/analyze`);
+      
+      const controller = new AbortController();
+      timeoutId = setTimeout(() => {
+        console.log('⏰ Timeout déclenché après 30s');
+        controller.abort();
+      }, 30000);
+      
+      console.log('📡 Début requête fetch...');
+      const response = await fetch(`${apiUrl}/api/v1/contract/analyze`, {
         method: 'POST',
         body: formData,
+        headers: {
+          'Accept': 'application/json',
+        },
+        mode: 'cors',
+        credentials: 'omit',
+        signal: controller.signal,
       });
+      
+      if (timeoutId) clearTimeout(timeoutId);
+      console.log('📥 Réponse reçue:', response.status, response.statusText);
+      console.log('📋 Headers:', Object.fromEntries(response.headers.entries()));
 
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Erreur réponse:', errorText);
         throw new Error(`Erreur ${response.status}: ${response.statusText}`);
       }
 
       const result: AnalysisResult = await response.json();
+      console.log('✅ Résultat reçu:', result);
 
       setUploadState(prev => ({ 
         ...prev, 
@@ -115,30 +151,63 @@ export default function ContractReaderPage() {
       }));
 
     } catch (error) {
+      if (timeoutId) clearTimeout(timeoutId);
+      console.error('💥 Erreur complète:', error);
+      console.error('📊 Type erreur:', error instanceof Error ? error.constructor.name : typeof error);
+      console.error('📝 Message:', error instanceof Error ? error.message : String(error));
+      console.error('🔍 Stack:', error instanceof Error ? error.stack : 'Pas de stack');
+      
+      let errorMessage = 'Erreur de connexion au serveur';
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          errorMessage = 'Timeout: L\'analyse prend trop de temps (>30s)';
+        } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+          errorMessage = 'Erreur réseau: Impossible de contacter le serveur';
+        } else if (error.message.includes('CORS')) {
+          errorMessage = 'Erreur CORS: Problème de sécurité cross-origin';
+        } else {
+          errorMessage = `Erreur: ${error.message}`;
+        }
+      }
+      
       setUploadState(prev => ({ 
         ...prev, 
         isUploading: false, 
         isAnalyzing: false,
-        error: error instanceof Error ? error.message : 'Erreur inconnue' 
+        error: errorMessage
       }));
     }
   };
 
   const handleDownloadPDF = async () => {
-    if (!uploadState.result?.pdf_download_url) return;
+    const downloadUrl = uploadState.result?.metadata?.download_url || uploadState.result?.pdf_download_url;
+    const analysisId = uploadState.result?.metadata?.analysis_id || uploadState.result?.processing_id;
+    
+    if (!downloadUrl) return;
 
     try {
-      const response = await fetch(`http://localhost:8000${uploadState.result.pdf_download_url}`);
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://xyqo-backend-production.up.railway.app';
+      const response = await fetch(`${apiUrl}${downloadUrl}`);
       const blob = await response.blob();
       
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `resume_contrat_${uploadState.result.processing_id}.pdf`;
+      a.download = `resume_contrat_${analysisId || 'analyse'}.pdf`;
+      a.target = '_blank'; // Ouvrir dans un nouvel onglet
       document.body.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      
+      // Ouvrir aussi le PDF dans le navigateur pour visualisation
+      setTimeout(() => {
+        window.open(url, '_blank');
+      }, 100);
+      
+      // Nettoyer après un délai pour permettre l'ouverture
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }, 1000);
     } catch (error) {
       console.error('Erreur téléchargement:', error);
     }
@@ -401,7 +470,9 @@ export default function ContractReaderPage() {
                       <div>
                         <h3 className="text-2xl font-black text-white">ANALYSE TERMINÉE</h3>
                         <p className="text-green-200 text-lg font-medium">
-                          Traité en {uploadState.result.processing_time.toFixed(1)}s • Coût: €{uploadState.result.cost_euros.toFixed(4)}
+                          Traité avec succès • {uploadState.result.metadata?.processed_at ? 
+                            new Date(uploadState.result.metadata.processed_at).toLocaleString() : 
+                            'Maintenant'}
                         </p>
                       </div>
                     </div>
@@ -426,14 +497,14 @@ export default function ContractReaderPage() {
                     <div className="space-y-3">
                       <div>
                         <h4 className="text-lg font-black text-cyan-300 mb-2">OBJET</h4>
-                        <p className="text-white text-lg">{uploadState.result.summary.contract?.object || 'Non spécifié'}</p>
+                        <p className="text-white text-lg">{uploadState.result.analysis?.contract?.object || uploadState.result.summary?.title || 'Non spécifié'}</p>
                       </div>
                       <div>
                         <h4 className="text-lg font-black text-cyan-300 mb-2">PARTIES</h4>
                         <div className="space-y-2">
-                          {uploadState.result.summary.parties?.list?.map((party: any, index: number) => (
+                          {(uploadState.result.analysis?.parties?.list || uploadState.result.summary?.parties || []).map((party: any, index: number) => (
                             <p key={index} className="text-white text-lg">
-                              <span className="text-yellow-400 font-black">{party.role}:</span> {party.name}
+                              <span className="text-yellow-400 font-black">{party.role || 'Partie'}:</span> {party.name || party}
                             </p>
                           ))}
                         </div>
@@ -443,23 +514,23 @@ export default function ContractReaderPage() {
                     <div className="space-y-3">
                       <div>
                         <h4 className="text-lg font-black text-cyan-300 mb-2">DROIT APPLICABLE</h4>
-                        <p className="text-white text-lg">{uploadState.result.summary.governance?.law || 'Non spécifié'}</p>
+                        <p className="text-white text-lg">{uploadState.result.analysis?.governance?.law || 'Non spécifié'}</p>
                       </div>
                       <div>
                         <h4 className="text-lg font-black text-cyan-300 mb-2">CONFORMITÉ RGPD</h4>
                         <span className={`inline-flex items-center px-4 py-2 rounded-full text-lg font-black ${
-                          uploadState.result.summary.contract?.data_privacy?.rgpd 
+                          uploadState.result.analysis?.contract?.data_privacy?.rgpd 
                             ? 'bg-gradient-to-r from-green-400 to-emerald-500 text-white' 
                             : 'bg-gradient-to-r from-red-400 to-pink-500 text-white'
                         }`}>
-                          {uploadState.result.summary.contract?.data_privacy?.rgpd ? 'CONFORME' : 'NON CONFORME'}
+                          {uploadState.result.analysis?.contract?.data_privacy?.rgpd ? 'CONFORME' : 'NON CONFORME'}
                         </span>
                       </div>
                     </div>
                   </div>
 
                   {/* Risks */}
-                  {uploadState.result.summary.risks_red_flags?.length > 0 && (
+                  {uploadState.result.analysis?.risks_red_flags?.length > 0 && (
                     <div className="bg-gradient-to-r from-orange-500/20 to-red-500/20 border-2 border-orange-400/40 rounded-xl p-6 backdrop-blur-lg">
                       <h4 className="text-xl font-black text-orange-300 mb-4 flex items-center">
                         <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -468,7 +539,7 @@ export default function ContractReaderPage() {
                         FACTEURS DE RISQUE
                       </h4>
                       <ul className="text-orange-100 text-lg space-y-2 font-medium">
-                        {uploadState.result.summary.risks_red_flags.map((risk: string, index: number) => (
+                        {uploadState.result.analysis?.risks_red_flags?.map((risk: string, index: number) => (
                           <li key={index}>• {risk}</li>
                         ))}
                       </ul>

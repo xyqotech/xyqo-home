@@ -1,1 +1,6 @@
-{}
+{
+  "/_not-found": "app/_not-found.js",
+  "/api/sample-contract/route": "app/api/sample-contract/route.js",
+  "/page": "app/page.js",
+  "/contract-reader/page": "app/contract-reader/page.js"
+}
