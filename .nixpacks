@@ -1,0 +1,10 @@
+providers = ["python"]
+
+[phases.setup]
+nixPkgs = ["python311", "pip"]
+
+[phases.install]
+cmds = ["pip install -r requirements.txt"]
+
+[start]
+cmd = "python3 xyqo_backend_production.py"
