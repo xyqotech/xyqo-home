@@ -108,7 +108,7 @@ export default function ContractReaderPage() {
       const formData = new FormData();
       formData.append('file', file);
       
-      const apiUrl = 'https://xyqo-backend-production.up.railway.app';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://xyqo-home.onrender.com';
       console.log('🌐 URL API:', apiUrl);
       console.log('📤 Envoi vers:', `${apiUrl}/api/v1/contract/analyze`);
       
@@ -190,7 +190,7 @@ export default function ContractReaderPage() {
 
     try {
       console.log('🔄 Tentative de téléchargement PDF:', downloadUrl);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://xyqo-backend-production.up.railway.app';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://xyqo-home.onrender.com';
       const fullUrl = `${apiUrl}${downloadUrl}`;
       
       console.log('📡 URL complète:', fullUrl);
