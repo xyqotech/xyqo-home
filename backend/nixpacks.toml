@@ -2,6 +2,7 @@ providers = ["python"]
 
 [variables]
 PYTHONPATH = "/app"
+PYTHONUNBUFFERED = "1"
 
 [phases.setup]
 nixPkgs = ["python311", "python311Packages.pip", "python311Packages.virtualenv"]
@@ -12,5 +13,8 @@ cmds = [
   "/opt/venv/bin/pip install -r requirements.txt"
 ]
 
+[phases.build]
+cmds = ["echo 'Build phase completed'"]
+
 [start]
-cmd = "/opt/venv/bin/python app.py"
+cmd = "/opt/venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1"
