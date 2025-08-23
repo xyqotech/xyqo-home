@@ -53,8 +53,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# OpenAI configuration - CRITICAL: Must be set, no fallback simulation
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# OpenAI configuration - Allow startup without API key for healthcheck
+openai_api_key = os.getenv("OPENAI_API_KEY")
+if openai_api_key:
+    openai.api_key = openai_api_key
 
 # In-memory caches
 pdf_cache: Dict[str, bytes] = {}
@@ -76,7 +78,7 @@ def analyze_contract_with_openai(contract_text: str) -> Dict[str, Any]:
     """Analyze contract using OpenAI GPT-4o-mini - NO SIMULATION MODE"""
     
     # CRITICAL: Fail if no API key, don't simulate
-    if not openai.api_key:
+    if not openai_api_key:
         raise HTTPException(status_code=500, detail="OpenAI API key not configured")
     
     system_prompt = """Tu es un expert juridique spécialisé dans l'analyse de contrats commerciaux français. 
@@ -271,7 +273,7 @@ def health():
         "timestamp": datetime.utcnow().isoformat() + "Z",
         "port": os.getenv("PORT", "8000"),
         "version": "2.0.0",
-        "openai_configured": bool(openai.api_key)
+        "openai_configured": bool(openai_api_key)
     }
 
 @app.post("/api/v1/contract/analyze")
