@@ -257,6 +257,11 @@ def generate_pdf_report(analysis: Dict[str, Any], processing_id: str) -> bytes:
     buffer.seek(0)
     return buffer.getvalue()
 
+@app.get("/")
+def root():
+    """Root endpoint for Railway health checks"""
+    return {"message": "XYQO Backend is running", "status": "ok"}
+
 @app.get("/health")
 def health():
     """Health check endpoint - CRITICAL: Must show FastAPI, not Node.js"""
