@@ -4,4 +4,4 @@ providers = ["python"]
 PYTHONUNBUFFERED = "1"
 
 [start]
-cmd = "python app.py"
+cmd = "python simple_server.py"
