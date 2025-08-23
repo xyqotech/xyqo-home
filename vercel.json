@@ -5,11 +5,6 @@
   "installCommand": "npm install",
   "outputDirectory": ".next",
   "env": {
-    "NEXT_PUBLIC_API_URL": "@api_url"
-  },
-  "functions": {
-    "app/api/**/*.ts": {
-      "runtime": "nodejs18.x"
-    }
+    "NEXT_PUBLIC_API_URL": "https://xyqo-backend-production.up.railway.app"
   }
 }
