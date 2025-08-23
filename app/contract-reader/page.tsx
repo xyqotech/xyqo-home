@@ -242,110 +242,162 @@ export default function ContractReaderPage() {
     }
   };
 
-  const generateFallbackPDF = () => {
+  const generateFallbackPDF = async () => {
     try {
       const result = uploadState.result;
       if (!result) return;
 
-      // Créer un contenu PDF simple en HTML
-      const htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="UTF-8">
-          <title>Rapport d'Analyse Contractuelle</title>
-          <style>
-            body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }
-            .header { text-align: center; margin-bottom: 40px; }
-            .title { color: #1e40af; font-size: 24px; font-weight: bold; }
-            .section { margin-bottom: 30px; }
-            .section-title { color: #1e40af; font-size: 18px; font-weight: bold; margin-bottom: 15px; border-bottom: 2px solid #e5e7eb; padding-bottom: 5px; }
-            .info-grid { display: grid; grid-template-columns: 150px 1fr; gap: 10px; margin-bottom: 15px; }
-            .label { font-weight: bold; color: #374151; }
-            .value { color: #111827; }
-            .parties { margin-bottom: 15px; }
-            .party { background: #f8fafc; padding: 15px; margin-bottom: 10px; border-radius: 5px; }
-            .footer { margin-top: 50px; text-align: center; color: #6b7280; font-size: 12px; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div class="title">RAPPORT D'ANALYSE CONTRACTUELLE</div>
-            <p>XYQO Contract Reader - ${new Date().toLocaleDateString('fr-FR')}</p>
-          </div>
-
-          <div class="section">
-            <div class="section-title">INFORMATIONS GÉNÉRALES</div>
-            <div class="info-grid">
-              <div class="label">Objet:</div>
-              <div class="value">${result.analysis?.contract?.object || result.summary?.title || 'Non spécifié'}</div>
-              <div class="label">Type:</div>
-              <div class="value">${result.analysis?.contract?.type || result.summary?.contract_type || 'Non spécifié'}</div>
-              <div class="label">Langue:</div>
-              <div class="value">${result.analysis?.contract?.language || 'Français'}</div>
-              <div class="label">Traité le:</div>
-              <div class="value">${result.metadata?.processed_at ? new Date(result.metadata.processed_at).toLocaleString('fr-FR') : new Date().toLocaleString('fr-FR')}</div>
-            </div>
-          </div>
-
-          <div class="section">
-            <div class="section-title">PARTIES CONTRACTUELLES</div>
-            <div class="parties">
-              ${(result.analysis?.parties?.list || result.summary?.parties || ['Partie A', 'Partie B']).map((party: any, index: number) => `
-                <div class="party">
-                  <strong>Partie ${index + 1}:</strong> ${typeof party === 'string' ? party : party.name || `Partie ${index + 1}`}
-                  ${typeof party === 'object' && party.role ? `<br><em>Rôle: ${party.role}</em>` : ''}
-                </div>
-              `).join('')}
-            </div>
-          </div>
-
-          <div class="section">
-            <div class="section-title">ASPECTS FINANCIERS</div>
-            <div class="info-grid">
-              <div class="label">Montant:</div>
-              <div class="value">${result.analysis?.financial?.amount || 'Non spécifié'}</div>
-              <div class="label">Devise:</div>
-              <div class="value">${result.analysis?.financial?.currency || 'EUR'}</div>
-              <div class="label">Conditions:</div>
-              <div class="value">${result.analysis?.financial?.payment_terms || 'Non spécifié'}</div>
-            </div>
-          </div>
-
-          ${result.analysis?.risks_red_flags?.length ? `
-          <div class="section">
-            <div class="section-title">FACTEURS DE RISQUE</div>
-            <ul>
-              ${result.analysis.risks_red_flags.map((risk: string) => `<li>${risk}</li>`).join('')}
-            </ul>
-          </div>
-          ` : ''}
-
-          <div class="footer">
-            <p>Rapport généré par XYQO Contract Reader</p>
-            <p>ID de traitement: ${result.metadata?.analysis_id || result.processing_id || 'N/A'}</p>
-            <p>Temps de traitement: ${result.processing_time || 'N/A'}s • Coût: ${result.cost_euros || 'N/A'}€</p>
-          </div>
-        </body>
-        </html>
-      `;
-
-      // Créer un blob HTML et l'ouvrir dans un nouvel onglet pour impression PDF
-      const blob = new Blob([htmlContent], { type: 'text/html' });
-      const url = window.URL.createObjectURL(blob);
+      // Import jsPDF dynamiquement
+      const { jsPDF } = await import('jspdf');
       
-      // Ouvrir dans un nouvel onglet pour permettre l'impression en PDF
-      const newWindow = window.open(url, '_blank');
+      // Créer un nouveau document PDF
+      const doc = new jsPDF();
       
-      // Nettoyer après un délai
-      setTimeout(() => {
-        window.URL.revokeObjectURL(url);
-      }, 5000);
+      // Configuration des couleurs et styles
+      const primaryColor = [30, 64, 175] as const; // Bleu XYQO
+      const textColor = [17, 24, 39] as const; // Gris foncé
+      const lightGray = [107, 114, 128] as const; // Gris clair
       
-      console.log('✅ PDF de fallback généré et ouvert');
+      let yPosition = 20;
+      
+      // En-tête
+      doc.setFontSize(20);
+      doc.setTextColor(...primaryColor);
+      doc.text('RAPPORT D\'ANALYSE CONTRACTUELLE', 105, yPosition, { align: 'center' });
+      
+      yPosition += 10;
+      doc.setFontSize(12);
+      doc.setTextColor(...lightGray);
+      doc.text(`XYQO Contract Reader - ${new Date().toLocaleDateString('fr-FR')}`, 105, yPosition, { align: 'center' });
+      
+      yPosition += 20;
+      
+      // Section Informations Générales
+      doc.setFontSize(14);
+      doc.setTextColor(...primaryColor);
+      doc.text('INFORMATIONS GÉNÉRALES', 20, yPosition);
+      yPosition += 10;
+      
+      doc.setFontSize(10);
+      doc.setTextColor(...textColor);
+      
+      const contractInfo = [
+        ['Objet:', result.analysis?.contract?.object || result.summary?.title || 'Non spécifié'],
+        ['Type:', result.analysis?.contract?.type || result.summary?.contract_type || 'Non spécifié'],
+        ['Langue:', result.analysis?.contract?.language || 'Français'],
+        ['Traité le:', result.metadata?.processed_at ? new Date(result.metadata.processed_at).toLocaleString('fr-FR') : new Date().toLocaleString('fr-FR')]
+      ];
+      
+      contractInfo.forEach(([label, value]) => {
+        doc.setFont('helvetica', 'bold');
+        doc.text(label, 25, yPosition);
+        doc.setFont('helvetica', 'normal');
+        doc.text(value, 70, yPosition);
+        yPosition += 6;
+      });
+      
+      yPosition += 10;
+      
+      // Section Parties Contractuelles
+      doc.setFontSize(14);
+      doc.setTextColor(...primaryColor);
+      doc.text('PARTIES CONTRACTUELLES', 20, yPosition);
+      yPosition += 10;
+      
+      doc.setFontSize(10);
+      doc.setTextColor(...textColor);
+      
+      const parties = result.analysis?.parties?.list || result.summary?.parties || ['Partie A', 'Partie B'];
+      parties.forEach((party: any, index: number) => {
+        const partyName = typeof party === 'string' ? party : party.name || `Partie ${index + 1}`;
+        const partyRole = typeof party === 'object' && party.role ? ` (${party.role})` : '';
+        
+        doc.setFont('helvetica', 'bold');
+        doc.text(`Partie ${index + 1}:`, 25, yPosition);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`${partyName}${partyRole}`, 70, yPosition);
+        yPosition += 6;
+      });
+      
+      yPosition += 10;
+      
+      // Section Aspects Financiers
+      doc.setFontSize(14);
+      doc.setTextColor(...primaryColor);
+      doc.text('ASPECTS FINANCIERS', 20, yPosition);
+      yPosition += 10;
+      
+      doc.setFontSize(10);
+      doc.setTextColor(...textColor);
+      
+      const financialInfo = [
+        ['Montant:', result.analysis?.financial?.amount || 'Non spécifié'],
+        ['Devise:', result.analysis?.financial?.currency || 'EUR'],
+        ['Conditions:', result.analysis?.financial?.payment_terms || 'Non spécifié']
+      ];
+      
+      financialInfo.forEach(([label, value]) => {
+        doc.setFont('helvetica', 'bold');
+        doc.text(label, 25, yPosition);
+        doc.setFont('helvetica', 'normal');
+        doc.text(value, 70, yPosition);
+        yPosition += 6;
+      });
+      
+      yPosition += 10;
+      
+      // Section Facteurs de Risque (si présents)
+      const risks = result.analysis?.risks_red_flags || [];
+      if (risks.length > 0) {
+        doc.setFontSize(14);
+        doc.setTextColor(...primaryColor);
+        doc.text('FACTEURS DE RISQUE', 20, yPosition);
+        yPosition += 10;
+        
+        doc.setFontSize(10);
+        doc.setTextColor(...textColor);
+        
+        risks.forEach((risk: string) => {
+          // Gérer les textes longs avec wrapping
+          const lines = doc.splitTextToSize(`• ${risk}`, 160);
+          lines.forEach((line: string) => {
+            if (yPosition > 270) { // Nouvelle page si nécessaire
+              doc.addPage();
+              yPosition = 20;
+            }
+            doc.text(line, 25, yPosition);
+            yPosition += 6;
+          });
+        });
+        
+        yPosition += 10;
+      }
+      
+      // Pied de page
+      if (yPosition > 250) {
+        doc.addPage();
+        yPosition = 20;
+      }
+      
+      yPosition += 20;
+      doc.setFontSize(9);
+      doc.setTextColor(...lightGray);
+      doc.text('Rapport généré par XYQO Contract Reader', 105, yPosition, { align: 'center' });
+      yPosition += 5;
+      doc.text(`ID de traitement: ${result.metadata?.analysis_id || result.processing_id || 'N/A'}`, 105, yPosition, { align: 'center' });
+      yPosition += 5;
+      doc.text(`Temps de traitement: ${result.processing_time || 'N/A'}s • Coût: ${result.cost_euros || 'N/A'}€`, 105, yPosition, { align: 'center' });
+      
+      // Télécharger le PDF
+      const analysisId = result.metadata?.analysis_id || result.processing_id || 'analyse';
+      const filename = `rapport_contrat_${analysisId}_${new Date().toISOString().split('T')[0]}.pdf`;
+      
+      doc.save(filename);
+      
+      console.log('✅ PDF généré et téléchargé avec succès:', filename);
       
     } catch (error) {
-      console.error('❌ Erreur génération PDF fallback:', error);
+      console.error('❌ Erreur génération PDF:', error);
       alert('Impossible de générer le rapport PDF. Veuillez réessayer.');
     }
   };
