@@ -289,9 +289,9 @@ export default function ContractReaderPage() {
       doc.setTextColor(...textColor);
       
       const contractInfo = [
-        ['Objet:', result.analysis?.contract?.object || result.summary?.title || 'Non spécifié'],
-        ['Type:', result.analysis?.contract?.type || result.summary?.contract_type || 'Non spécifié'],
-        ['Langue:', result.analysis?.contract?.language || 'Français'],
+        ['Objet:', result.analysis?.contract?.object || result.analysis?.summary || result.summary?.title || 'Non spécifié'],
+        ['Type:', result.analysis?.contract?.type || result.analysis?.contract_type || result.summary?.contract_type || 'Non spécifié'],
+        ['Langue:', result.analysis?.contract?.language || result.analysis?.language || 'Français'],
         ['Traité le:', result.metadata?.processed_at ? new Date(result.metadata.processed_at).toLocaleString('fr-FR') : new Date().toLocaleString('fr-FR')]
       ];
       
@@ -314,7 +314,7 @@ export default function ContractReaderPage() {
       doc.setFontSize(10);
       doc.setTextColor(...textColor);
       
-      const parties = result.analysis?.parties?.list || result.summary?.parties || ['Partie A', 'Partie B'];
+      const parties = result.analysis?.parties || result.analysis?.parties?.list || result.summary?.parties || [];
       parties.forEach((party: any, index: number) => {
         const partyName = typeof party === 'string' ? party : party.name || `Partie ${index + 1}`;
         const partyRole = typeof party === 'object' && party.role ? ` (${party.role})` : '';
@@ -338,9 +338,9 @@ export default function ContractReaderPage() {
       doc.setTextColor(...textColor);
       
       const financialInfo = [
-        ['Montant:', result.analysis?.financial?.amount || 'Non spécifié'],
-        ['Devise:', result.analysis?.financial?.currency || 'EUR'],
-        ['Conditions:', result.analysis?.financial?.payment_terms || 'Non spécifié']
+        ['Montant:', result.analysis?.financial?.amount || result.analysis?.contract?.financial_terms?.amount || 'Non spécifié'],
+        ['Devise:', result.analysis?.financial?.currency || result.analysis?.contract?.financial_terms?.currency || 'EUR'],
+        ['Conditions:', result.analysis?.financial?.payment_terms || result.analysis?.contract?.financial_terms?.payment_terms || 'Non spécifié']
       ];
       
       financialInfo.forEach(([label, value]) => {
@@ -354,7 +354,7 @@ export default function ContractReaderPage() {
       yPosition += 10;
       
       // Section Facteurs de Risque (si présents)
-      const risks = result.analysis?.risks_red_flags || [];
+      const risks = result.analysis?.risks_red_flags || result.analysis?.risks || result.analysis?.red_flags || [];
       if (risks.length > 0) {
         doc.setFontSize(14);
         doc.setTextColor(...primaryColor);
@@ -393,7 +393,7 @@ export default function ContractReaderPage() {
       yPosition += 5;
       doc.text(`ID de traitement: ${result.metadata?.analysis_id || result.processing_id || 'N/A'}`, 105, yPosition, { align: 'center' });
       yPosition += 5;
-      doc.text(`Temps de traitement: ${result.processing_time || 'N/A'}s • Coût: ${result.cost_euros || 'N/A'}€`, 105, yPosition, { align: 'center' });
+      doc.text(`Temps de traitement: ${result.processing_time || result.metadata?.processing_time || 'N/A'}s • Coût: ${result.cost_euros || result.metadata?.cost || 'N/A'}€`, 105, yPosition, { align: 'center' });
       
       // Télécharger le PDF
       const analysisId = result.metadata?.analysis_id || result.processing_id || 'analyse';
