@@ -1,7 +1,0 @@
-providers = ["python"]
-
-[variables]
-PYTHONUNBUFFERED = "1"
-
-[start]
-cmd = "python simple_server.py"
