@@ -1,5 +1,4 @@
-[providers]
-python = "3.11"
+providers = ["python"]
 
 [variables]
 PYTHONPATH = "/app"
@@ -11,4 +10,4 @@ nixPkgs = ["python311", "python311Packages.pip"]
 cmds = ["pip install -r requirements.txt"]
 
 [start]
-cmd = "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+cmd = "python app.py"
