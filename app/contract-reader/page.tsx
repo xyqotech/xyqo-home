@@ -183,8 +183,15 @@ export default function ContractReaderPage() {
     const downloadUrl = uploadState.result?.metadata?.download_url || uploadState.result?.pdf_download_url;
     const analysisId = uploadState.result?.metadata?.analysis_id || uploadState.result?.processing_id;
     
+    if (!downloadUrl && !uploadState.result) {
+      console.error('Aucune analyse disponible pour générer le PDF');
+      return;
+    }
+    
+    // Si pas d'URL de téléchargement, générer directement le PDF de fallback
     if (!downloadUrl) {
-      console.error('Aucune URL de téléchargement disponible');
+      console.log('🔄 Pas d\'URL de téléchargement, génération PDF directe...');
+      generateFallbackPDF();
       return;
     }
 
@@ -686,12 +693,12 @@ export default function ContractReaderPage() {
                     <div className="space-y-3">
                       <div>
                         <h4 className="text-lg font-black text-cyan-300 mb-2">OBJET</h4>
-                        <p className="text-white text-lg">{uploadState.result.analysis?.contract?.object || uploadState.result.summary?.title || 'Non spécifié'}</p>
+                        <p className="text-white text-lg">{uploadState.result.analysis?.contract?.object || uploadState.result.analysis?.summary || uploadState.result.summary?.title || 'Non spécifié'}</p>
                       </div>
                       <div>
                         <h4 className="text-lg font-black text-cyan-300 mb-2">PARTIES</h4>
                         <div className="space-y-2">
-                          {(uploadState.result.analysis?.parties?.list || uploadState.result.summary?.parties || []).map((party: any, index: number) => (
+                          {(uploadState.result.analysis?.parties || uploadState.result.analysis?.parties?.list || uploadState.result.summary?.parties || []).map((party: any, index: number) => (
                             <p key={index} className="text-white text-lg">
                               <span className="text-yellow-400 font-black">{party.role || 'Partie'}:</span> {party.name || party}
                             </p>
@@ -703,23 +710,23 @@ export default function ContractReaderPage() {
                     <div className="space-y-3">
                       <div>
                         <h4 className="text-lg font-black text-cyan-300 mb-2">DROIT APPLICABLE</h4>
-                        <p className="text-white text-lg">{uploadState.result.analysis?.governance?.law || 'Non spécifié'}</p>
+                        <p className="text-white text-lg">{uploadState.result.analysis?.governance?.applicable_law || uploadState.result.analysis?.governance?.law || uploadState.result.analysis?.legal?.applicable_law || 'Non spécifié'}</p>
                       </div>
                       <div>
                         <h4 className="text-lg font-black text-cyan-300 mb-2">CONFORMITÉ RGPD</h4>
                         <span className={`inline-flex items-center px-4 py-2 rounded-full text-lg font-black ${
-                          uploadState.result.analysis?.contract?.data_privacy?.rgpd 
+                          uploadState.result.analysis?.contract?.data_privacy?.rgpd || uploadState.result.analysis?.compliance?.rgpd || uploadState.result.analysis?.rgpd_compliance 
                             ? 'bg-gradient-to-r from-green-400 to-emerald-500 text-white' 
                             : 'bg-gradient-to-r from-red-400 to-pink-500 text-white'
                         }`}>
-                          {uploadState.result.analysis?.contract?.data_privacy?.rgpd ? 'CONFORME' : 'NON CONFORME'}
+                          {(uploadState.result.analysis?.contract?.data_privacy?.rgpd || uploadState.result.analysis?.compliance?.rgpd || uploadState.result.analysis?.rgpd_compliance) ? 'CONFORME' : 'NON CONFORME'}
                         </span>
                       </div>
                     </div>
                   </div>
 
                   {/* Risks */}
-                  {uploadState.result.analysis?.risks_red_flags?.length > 0 && (
+                  {(uploadState.result.analysis?.risks_red_flags || uploadState.result.analysis?.risks || uploadState.result.analysis?.red_flags || []).length > 0 && (
                     <div className="bg-gradient-to-r from-orange-500/20 to-red-500/20 border-2 border-orange-400/40 rounded-xl p-6 backdrop-blur-lg">
                       <h4 className="text-xl font-black text-orange-300 mb-4 flex items-center">
                         <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -728,7 +735,7 @@ export default function ContractReaderPage() {
                         FACTEURS DE RISQUE
                       </h4>
                       <ul className="text-orange-100 text-lg space-y-2 font-medium">
-                        {uploadState.result.analysis?.risks_red_flags?.map((risk: string, index: number) => (
+                        {(uploadState.result.analysis?.risks_red_flags || uploadState.result.analysis?.risks || uploadState.result.analysis?.red_flags || []).map((risk: string, index: number) => (
                           <li key={index}>• {risk}</li>
                         ))}
                       </ul>
