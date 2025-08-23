@@ -60,11 +60,13 @@ class XYQOHandler(BaseHTTPRequestHandler):
 def main():
     """Start the HTTP server"""
     try:
-        port = int(os.environ.get("PORT", 8000))
+        # Force port 8000 to match Railway networking
+        port = 8000
         host = "0.0.0.0"
         
         logger.info(f"=== XYQO Simple Server Starting ===")
-        logger.info(f"Host: {host}, Port: {port}")
+        logger.info(f"Host: {host}, Port: {port} (FORCED)")
+        logger.info(f"Railway PORT env: {os.environ.get('PORT', 'NOT SET')}")
         
         server = HTTPServer((host, port), XYQOHandler)
         
