@@ -183,18 +183,42 @@ export default function ContractReaderPage() {
     const downloadUrl = uploadState.result?.metadata?.download_url || uploadState.result?.pdf_download_url;
     const analysisId = uploadState.result?.metadata?.analysis_id || uploadState.result?.processing_id;
     
-    if (!downloadUrl) return;
+    if (!downloadUrl) {
+      console.error('Aucune URL de téléchargement disponible');
+      return;
+    }
 
     try {
+      console.log('🔄 Tentative de téléchargement PDF:', downloadUrl);
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://xyqo-backend-production.up.railway.app';
-      const response = await fetch(`${apiUrl}${downloadUrl}`);
+      const fullUrl = `${apiUrl}${downloadUrl}`;
+      
+      console.log('📡 URL complète:', fullUrl);
+      const response = await fetch(fullUrl);
+      
+      console.log('📥 Réponse téléchargement:', response.status, response.statusText);
+      
+      if (!response.ok) {
+        console.error('❌ Erreur téléchargement:', response.status, response.statusText);
+        
+        // Si l'endpoint n'existe pas, générer un PDF de fallback
+        if (response.status === 404) {
+          console.log('🔄 Génération PDF de fallback...');
+          generateFallbackPDF();
+          return;
+        }
+        
+        throw new Error(`Erreur ${response.status}: ${response.statusText}`);
+      }
+      
       const blob = await response.blob();
+      console.log('📄 PDF reçu, taille:', blob.size, 'bytes');
       
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = `resume_contrat_${analysisId || 'analyse'}.pdf`;
-      a.target = '_blank'; // Ouvrir dans un nouvel onglet
+      a.target = '_blank';
       document.body.appendChild(a);
       a.click();
       
@@ -208,8 +232,121 @@ export default function ContractReaderPage() {
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
       }, 1000);
+      
     } catch (error) {
-      console.error('Erreur téléchargement:', error);
+      console.error('💥 Erreur téléchargement PDF:', error);
+      
+      // En cas d'erreur, générer un PDF de fallback
+      console.log('🔄 Génération PDF de fallback suite à l\'erreur...');
+      generateFallbackPDF();
+    }
+  };
+
+  const generateFallbackPDF = () => {
+    try {
+      const result = uploadState.result;
+      if (!result) return;
+
+      // Créer un contenu PDF simple en HTML
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Rapport d'Analyse Contractuelle</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }
+            .header { text-align: center; margin-bottom: 40px; }
+            .title { color: #1e40af; font-size: 24px; font-weight: bold; }
+            .section { margin-bottom: 30px; }
+            .section-title { color: #1e40af; font-size: 18px; font-weight: bold; margin-bottom: 15px; border-bottom: 2px solid #e5e7eb; padding-bottom: 5px; }
+            .info-grid { display: grid; grid-template-columns: 150px 1fr; gap: 10px; margin-bottom: 15px; }
+            .label { font-weight: bold; color: #374151; }
+            .value { color: #111827; }
+            .parties { margin-bottom: 15px; }
+            .party { background: #f8fafc; padding: 15px; margin-bottom: 10px; border-radius: 5px; }
+            .footer { margin-top: 50px; text-align: center; color: #6b7280; font-size: 12px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="title">RAPPORT D'ANALYSE CONTRACTUELLE</div>
+            <p>XYQO Contract Reader - ${new Date().toLocaleDateString('fr-FR')}</p>
+          </div>
+
+          <div class="section">
+            <div class="section-title">INFORMATIONS GÉNÉRALES</div>
+            <div class="info-grid">
+              <div class="label">Objet:</div>
+              <div class="value">${result.analysis?.contract?.object || result.summary?.title || 'Non spécifié'}</div>
+              <div class="label">Type:</div>
+              <div class="value">${result.analysis?.contract?.type || result.summary?.contract_type || 'Non spécifié'}</div>
+              <div class="label">Langue:</div>
+              <div class="value">${result.analysis?.contract?.language || 'Français'}</div>
+              <div class="label">Traité le:</div>
+              <div class="value">${result.metadata?.processed_at ? new Date(result.metadata.processed_at).toLocaleString('fr-FR') : new Date().toLocaleString('fr-FR')}</div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">PARTIES CONTRACTUELLES</div>
+            <div class="parties">
+              ${(result.analysis?.parties?.list || result.summary?.parties || ['Partie A', 'Partie B']).map((party: any, index: number) => `
+                <div class="party">
+                  <strong>Partie ${index + 1}:</strong> ${typeof party === 'string' ? party : party.name || `Partie ${index + 1}`}
+                  ${typeof party === 'object' && party.role ? `<br><em>Rôle: ${party.role}</em>` : ''}
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">ASPECTS FINANCIERS</div>
+            <div class="info-grid">
+              <div class="label">Montant:</div>
+              <div class="value">${result.analysis?.financial?.amount || 'Non spécifié'}</div>
+              <div class="label">Devise:</div>
+              <div class="value">${result.analysis?.financial?.currency || 'EUR'}</div>
+              <div class="label">Conditions:</div>
+              <div class="value">${result.analysis?.financial?.payment_terms || 'Non spécifié'}</div>
+            </div>
+          </div>
+
+          ${result.analysis?.risks_red_flags?.length ? `
+          <div class="section">
+            <div class="section-title">FACTEURS DE RISQUE</div>
+            <ul>
+              ${result.analysis.risks_red_flags.map((risk: string) => `<li>${risk}</li>`).join('')}
+            </ul>
+          </div>
+          ` : ''}
+
+          <div class="footer">
+            <p>Rapport généré par XYQO Contract Reader</p>
+            <p>ID de traitement: ${result.metadata?.analysis_id || result.processing_id || 'N/A'}</p>
+            <p>Temps de traitement: ${result.processing_time || 'N/A'}s • Coût: ${result.cost_euros || 'N/A'}€</p>
+          </div>
+        </body>
+        </html>
+      `;
+
+      // Créer un blob HTML et l'ouvrir dans un nouvel onglet pour impression PDF
+      const blob = new Blob([htmlContent], { type: 'text/html' });
+      const url = window.URL.createObjectURL(blob);
+      
+      // Ouvrir dans un nouvel onglet pour permettre l'impression en PDF
+      const newWindow = window.open(url, '_blank');
+      
+      // Nettoyer après un délai
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+      }, 5000);
+      
+      console.log('✅ PDF de fallback généré et ouvert');
+      
+    } catch (error) {
+      console.error('❌ Erreur génération PDF fallback:', error);
+      alert('Impossible de générer le rapport PDF. Veuillez réessayer.');
     }
   };
 
