@@ -44,7 +44,10 @@ def main():
             host=host, 
             port=port, 
             log_level="info",
-            access_log=True
+            access_log=True,
+            timeout_keep_alive=120,
+            timeout_graceful_shutdown=30,
+            loop="asyncio"
         )
         
     except Exception as e:
