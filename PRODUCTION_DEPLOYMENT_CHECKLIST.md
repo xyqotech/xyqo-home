@@ -64,9 +64,9 @@
 
 ## 🌐 SERVICES DE DÉPLOIEMENT RECOMMANDÉS
 
-### Option 1: Vercel + Railway
+### Option 1: Vercel + Render
 - **Frontend** : Vercel (Next.js optimisé)
-- **Backend** : Railway (Python avec PostgreSQL)
+- **Backend** : Render (Python avec PostgreSQL)
 - **Avantages** : Simple, rapide, scaling automatique
 
 ### Option 2: Netlify + Heroku
