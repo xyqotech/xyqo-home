@@ -459,7 +459,7 @@ export default function ContractReaderPage() {
       result: null 
     }));
 
-    let timeoutId: NodeJS.Timeout | null = null;
+    let timeoutId: number | null = null;
 
     try {
       // Simulation du progress d'upload
@@ -486,8 +486,8 @@ export default function ContractReaderPage() {
       ];
       
       let stepIndex = 0;
-      let analysisInterval: NodeJS.Timeout | null = null;
-      analysisInterval = setInterval(() => {
+      let analysisInterval: number | null = null;
+      analysisInterval = window.setInterval(() => {
         if (stepIndex < analysisSteps.length) {
           setUploadState(prev => ({ 
             ...prev, 
@@ -519,7 +519,7 @@ export default function ContractReaderPage() {
       console.log('📤 Envoi vers:', apiUrl);
       
       const controller = new AbortController();
-      timeoutId = setTimeout(() => {
+      timeoutId = window.setTimeout(() => {
         console.log('⏰ Timeout déclenché après 30s');
         controller.abort();
       }, 30000);
@@ -532,11 +532,11 @@ export default function ContractReaderPage() {
           'Accept': 'application/json',
         },
         mode: 'cors',
-        credentials: 'omit',
+        credentials: 'same-origin',
         signal: controller.signal,
       });
       
-      if (timeoutId) clearTimeout(timeoutId);
+      if (timeoutId) window.clearTimeout(timeoutId);
       console.log('📥 Réponse reçue:', response.status, response.statusText);
       console.log('📋 Headers:', Object.fromEntries(response.headers.entries()));
 
@@ -565,7 +565,7 @@ export default function ContractReaderPage() {
       console.log('  - result.summary?.parties:', result.summary?.parties);
 
       // Nettoyer l'interval d'analyse
-      if (analysisInterval) clearInterval(analysisInterval);
+      if (analysisInterval) window.clearInterval(analysisInterval);
       
       setUploadState(prev => ({ 
         ...prev, 
@@ -576,7 +576,7 @@ export default function ContractReaderPage() {
       }));
 
     } catch (error) {
-      if (timeoutId) clearTimeout(timeoutId);
+      if (timeoutId) window.clearTimeout(timeoutId);
       // Nettoyer l'interval d'analyse en cas d'erreur
       // analysisInterval est défini dans le scope de la fonction handleFileUpload
       // Cette ligne sera supprimée car elle cause une erreur de scope
