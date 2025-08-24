@@ -512,7 +512,8 @@ export default function ContractReaderPage() {
         console.log('🧪 Mode test Board-Ready V2.3 activé');
       } else {
         // Production : utiliser uniquement l'API backend de production
-        apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/contract/analyze`;
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://xyqo.ai';
+        apiUrl = `${baseUrl}/api/v1/contract/analyze`;
       }
       
       console.log('🌐 URL API:', apiUrl);
