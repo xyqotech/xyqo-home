@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   env: {
-    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'https://xyqo.ai'
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'https://xyqo-home.onrender.com'
   },
   // CORS fix for local development only - DO NOT COMMIT TO PRODUCTION
   async headers() {
