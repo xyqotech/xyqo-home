@@ -6,6 +6,9 @@ import "./styles/themes.css";
 export const metadata: Metadata = {
   title: 'Xyqo.ai',
   description: 'Automation made simple.',
+  icons: {
+    icon: '/favicon.ico',
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
