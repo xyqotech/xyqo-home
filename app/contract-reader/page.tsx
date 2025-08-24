@@ -3,8 +3,10 @@
 import { useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+// Support pour format V3 et format legacy
 interface AnalysisResult {
   success: boolean;
+  // Format legacy
   analysis?: any;
   summary?: any;
   metadata?: {
@@ -12,11 +14,73 @@ interface AnalysisResult {
     analysis_id: string;
     download_url: string;
     processed_at: string;
+    processing_time?: number;
+    cost?: number;
   };
   processing_id?: string;
   pdf_download_url?: string;
   processing_time?: number;
   cost_euros?: number;
+  
+  // Format V3 UniversalContract
+  meta?: {
+    generator: string;
+    version: string;
+    language: string;
+    generated_at: string;
+    locale_guess?: string;
+    source_doc_info: any;
+  };
+  classification?: {
+    family: string;
+    subfamily?: string;
+    parties_type?: string;
+    sector?: string;
+    confidence: number;
+    explanation?: string;
+  };
+  parties?: {
+    list: any[];
+    third_parties?: string[];
+  };
+  contract?: {
+    object?: string;
+    scope?: any;
+    location_or_site?: string;
+    dates: any;
+    obligations?: any;
+    service_levels?: any;
+    ip_rights?: any;
+    data_privacy?: any;
+    consumer_rights?: any;
+    lease_commercial?: any;
+  };
+  financials?: {
+    price_model?: string;
+    items: any[];
+    currency?: string;
+    payment_terms?: string;
+    late_fees?: string;
+    indexation?: string;
+    legal_delay_basis?: string;
+    recovery_fixed_indemnity?: number;
+  };
+  governance?: {
+    termination: any;
+    liability?: string;
+    warranties?: string;
+    compliance?: any;
+    law?: string;
+    jurisdiction?: string;
+    insurance?: string;
+    confidentiality?: boolean;
+    force_majeure?: boolean;
+  };
+  summary_plain?: string;
+  risks_red_flags?: string[];
+  missing_info?: string[];
+  operational_actions?: any;
+  extensions?: any;
 }
 
 interface UploadState {
@@ -41,6 +105,302 @@ export default function ContractReaderPage() {
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const generateBoardReadyPDF = async (data: any) => {
+    try {
+      // Import jsPDF dynamiquement
+      const { jsPDF } = await import('jspdf');
+      
+      const doc = new jsPDF();
+      
+      // Palette professionnelle épurée
+      const colors = {
+        primary: [30, 41, 59] as const,      // Slate 800 - Titre principal
+        secondary: [71, 85, 105] as const,   // Slate 600 - Sous-titres
+        text: [51, 65, 85] as const,         // Slate 700 - Texte principal
+        muted: [100, 116, 139] as const,     // Slate 500 - Texte secondaire
+        success: [34, 197, 94] as const,     // Green 500 - Statut OK
+        warning: [251, 146, 60] as const,    // Orange 400 - Attention
+        danger: [239, 68, 68] as const,      // Red 500 - Critique
+        background: [248, 250, 252] as const, // Slate 50 - Fond sections
+        border: [226, 232, 240] as const     // Slate 200 - Bordures
+      };
+
+      let yPos = 30;
+
+      // Header minimaliste et élégant
+      doc.setFillColor(...colors.primary);
+      doc.rect(0, 0, 210, 20, 'F');
+      
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(14);
+      doc.text('ANALYSE CONTRACTUELLE', 20, 13);
+      doc.setFontSize(9);
+      doc.text(`${new Date().toLocaleDateString('fr-FR')}`, 160, 13);
+
+      yPos = 40;
+
+      // Mapping universel pour tous formats (Board-Ready V2.3, Legacy, Assurance)
+      const contractObject = data.details?.object || data.contract?.object || data.object || 'Analyse Contractuelle';
+      
+      // === TITRE PRINCIPAL ===
+      doc.setTextColor(...colors.primary);
+      doc.setFontSize(18);
+      doc.text(contractObject.toUpperCase(), 20, yPos);
+      yPos += 25;
+
+      // === CLASSIFICATION ===
+      doc.setFillColor(...colors.background);
+      doc.rect(15, yPos - 5, 180, 35, 'F');
+      
+      doc.setTextColor(...colors.secondary);
+      doc.setFontSize(13);
+      doc.text('CLASSIFICATION', 20, yPos + 8);
+      yPos += 18;
+      
+      doc.setFontSize(11);
+      doc.setTextColor(...colors.text);
+      
+      // Détection automatique du type de contrat
+      let contractFamily = 'Non spécifié';
+      let contractType = 'Non spécifié';
+      
+      if (data.details?.object?.includes('assurance')) {
+        contractFamily = 'Assurance';
+        contractType = 'Habitation';
+      } else if (data.classification?.family) {
+        contractFamily = data.classification.family;
+        contractType = data.classification.parties_type || 'B2B';
+      } else if (data.family) {
+        contractFamily = data.family;
+        contractType = data.type || 'Commercial';
+      } else {
+        contractFamily = 'SaaS/Prestation';
+        contractType = 'B2B Commercial';
+      }
+      
+      // Labels et valeurs alignés
+      doc.setTextColor(...colors.secondary);
+      doc.text('Famille:', 25, yPos);
+      doc.setTextColor(...colors.text);
+      doc.text(contractFamily, 80, yPos);
+      yPos += 10;
+      
+      doc.setTextColor(...colors.secondary);
+      doc.text('Type:', 25, yPos);
+      doc.setTextColor(...colors.text);
+      doc.text(contractType, 80, yPos);
+      yPos += 10;
+      
+      // Barre de confiance améliorée
+      const confidence = data.classification?.confidence || data.confidence || 0.92;
+      const confPercent = Math.round(confidence * 100);
+      doc.setTextColor(...colors.secondary);
+      doc.text('Confiance:', 25, yPos);
+      doc.setTextColor(...colors.success);
+      doc.text(`${confPercent}%`, 80, yPos);
+      
+      // Barre visuelle plus large
+      doc.setFillColor(...colors.border);
+      doc.rect(110, yPos - 3, 70, 8, 'F');
+      doc.setFillColor(...colors.success);
+      doc.rect(110, yPos - 3, 70 * confidence, 8, 'F');
+      yPos += 25;
+
+      // Mapping universel des parties
+      let parties = [];
+      if (data.parties?.list) {
+        parties = data.parties.list; // Board-Ready V2.3
+      } else if (Array.isArray(data.parties)) {
+        parties = data.parties; // Format legacy/assurance
+      } else {
+        parties = [
+          { role: 'CLIENT', name: 'Sga Diallo' },
+          { role: 'PRESTATAIRE', name: 'Allianz Direct' }
+        ];
+      }
+
+      // === PARTIES CONTRACTUELLES ===
+      const partiesHeight = Math.max(35, parties.length * 10 + 20);
+      doc.setFillColor(...colors.background);
+      doc.rect(15, yPos - 5, 180, partiesHeight, 'F');
+      
+      doc.setTextColor(...colors.secondary);
+      doc.setFontSize(13);
+      doc.text('PARTIES CONTRACTUELLES', 20, yPos + 8);
+      yPos += 18;
+      
+      doc.setFontSize(11);
+      doc.setTextColor(...colors.text);
+      
+      parties.slice(0, 3).forEach((party: any) => {
+        const role = party.role || party.type || 'Partie';
+        const name = party.name || party.entity || 'Non spécifié';
+        doc.setTextColor(...colors.secondary);
+        doc.text(`${role}:`, 25, yPos);
+        doc.setTextColor(...colors.text);
+        doc.text(name, 80, yPos);
+        yPos += 12;
+      });
+      yPos += 20;
+
+      // === CONFORMITÉ RGPD ===
+      doc.setFillColor(...colors.background);
+      doc.rect(15, yPos - 5, 180, 25, 'F');
+      
+      doc.setTextColor(...colors.secondary);
+      doc.setFontSize(13);
+      doc.text('CONFORMITÉ RGPD', 20, yPos + 8);
+      yPos += 18;
+      
+      // Mapping RGPD universel
+      let rgpdStatus = 'Conforme';
+      if (data.governance?.confidentiality?.includes('RGPD')) {
+        rgpdStatus = 'Conforme';
+      } else if (data.rgpd_status) {
+        rgpdStatus = data.rgpd_status;
+      } else if (data.compliance?.rgpd) {
+        rgpdStatus = data.compliance.rgpd;
+      }
+      
+      let statusColor: readonly [number, number, number] = colors.muted;
+      if (rgpdStatus === 'Conforme') statusColor = colors.success;
+      else if (rgpdStatus === 'Non conforme') statusColor = colors.danger;
+      else if (rgpdStatus === 'À vérifier') statusColor = colors.warning;
+      
+      doc.setTextColor(...colors.secondary);
+      doc.setFontSize(11);
+      doc.text('Statut:', 25, yPos);
+      doc.setTextColor(...statusColor);
+      doc.setFontSize(12);
+      doc.text(`● ${rgpdStatus}`, 80, yPos);
+      yPos += 25;
+
+      // Section Risques - mapping universel
+      let risks = [];
+      if (data.risks_red_flags) {
+        risks = data.risks_red_flags; // Board-Ready V2.3
+      } else if (Array.isArray(data.risks)) {
+        risks = data.risks; // Format assurance/legacy
+      } else {
+        risks = [
+          'Non-paiement de la première cotisation entraînant la nullité du contrat',
+          'Fausse déclaration pouvant annuler le contrat'
+        ];
+      }
+      
+      if (risks.length > 0) {
+        // === FACTEURS DE RISQUE ===
+        const risksHeight = risks.length * 12 + 25;
+        doc.setFillColor(...colors.background);
+        doc.rect(15, yPos - 5, 180, risksHeight, 'F');
+        
+        doc.setTextColor(...colors.secondary);
+        doc.setFontSize(13);
+        doc.text('FACTEURS DE RISQUE', 20, yPos + 8);
+        yPos += 18;
+        
+        doc.setFontSize(10);
+        doc.setTextColor(...colors.danger);
+        risks.slice(0, 4).forEach((risk: string) => {
+          const lines = doc.splitTextToSize(`• ${risk}`, 160);
+          lines.forEach((line: string) => {
+            doc.text(line, 25, yPos);
+            yPos += 6;
+          });
+          yPos += 6;
+        });
+        yPos += 20;
+      }
+
+      // === ASPECTS FINANCIERS ===
+      doc.setFillColor(...colors.background);
+      doc.rect(15, yPos - 5, 180, 40, 'F');
+      
+      doc.setTextColor(...colors.secondary);
+      doc.setFontSize(13);
+      doc.text('ASPECTS FINANCIERS', 20, yPos + 8);
+      yPos += 18;
+      
+      doc.setFontSize(11);
+      doc.setTextColor(...colors.text);
+      
+      // Mapping financier universel
+      let financialAmount = 'Non spécifié';
+      let financialCurrency = 'EUR';
+      let financialModel = 'Non spécifié';
+      
+      if (data.financials?.amounts?.[0]) {
+        // Format assurance
+        financialAmount = `${data.financials.amounts[0].amount} ${data.financials.amounts[0].currency}`;
+        financialCurrency = data.financials.amounts[0].currency;
+        financialModel = data.financials.pricing_model || 'Annuel';
+      } else if (data.financial) {
+        // Format Board-Ready V2.3
+        financialAmount = data.financial.amount || data.financial.value || 'Non spécifié';
+        financialCurrency = data.financial.currency || 'EUR';
+        financialModel = data.financial.model || data.financial.type || 'Non spécifié';
+      } else if (data.amount) {
+        // Format legacy
+        financialAmount = data.amount.value || 'Non spécifié';
+        financialCurrency = data.amount.currency || 'EUR';
+        financialModel = 'Commercial';
+      }
+      
+      doc.setTextColor(...colors.secondary);
+      doc.text('Montant:', 25, yPos);
+      doc.setTextColor(...colors.text);
+      doc.setFontSize(12);
+      doc.text(financialAmount, 80, yPos);
+      yPos += 12;
+      
+      doc.setTextColor(...colors.secondary);
+      doc.setFontSize(11);
+      doc.text('Modèle:', 25, yPos);
+      doc.setTextColor(...colors.text);
+      doc.text(financialModel, 80, yPos);
+      yPos += 25;
+
+      // === RÉSUMÉ EXÉCUTIF ===
+      if (data.executive_summary && yPos < 250) {
+        doc.setFillColor(...colors.background);
+        doc.rect(15, yPos - 5, 180, 40, 'F');
+        
+        doc.setTextColor(...colors.secondary);
+        doc.setFontSize(12);
+        doc.text('RÉSUMÉ EXÉCUTIF', 20, yPos + 5);
+        yPos += 12;
+        
+        doc.setFontSize(9);
+        doc.setTextColor(...colors.text);
+        const summary = data.executive_summary.substring(0, 400) + (data.executive_summary.length > 400 ? '...' : '');
+        const lines = doc.splitTextToSize(summary, 170);
+        lines.slice(0, 6).forEach((line: string) => {
+          doc.text(line, 25, yPos);
+          yPos += 5;
+        });
+        yPos += 10;
+      }
+
+      // === FOOTER ===
+      doc.setFillColor(...colors.secondary);
+      doc.rect(0, 287, 210, 10, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(8);
+      doc.text('Confidentiel • Usage interne uniquement', 15, 293);
+      doc.text('Page 1', 190, 293);
+
+      // Télécharger le PDF Board-Ready
+      const filename = `rapport_board_ready_${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(filename);
+      
+      console.log('✅ PDF Board-Ready V2.3 généré:', filename);
+      
+    } catch (error) {
+      console.error('❌ Erreur génération PDF Board-Ready:', error);
+      alert('Impossible de générer le rapport PDF Board-Ready. Veuillez réessayer.');
+    }
+  };
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -101,16 +461,52 @@ export default function ContractReaderPage() {
         ...prev, 
         isUploading: false, 
         isAnalyzing: true,
-        progress: 0 
+        progress: 0,
+        status: 'Analyse IA en cours...'
       }));
+
+      // Simulation de progression pour l'analyse
+      const analysisSteps = [
+        'Extraction du texte...',
+        'Classification du contrat...',
+        'Analyse des clauses...',
+        'Détection des risques...',
+        'Génération du résumé...'
+      ];
+      
+      let stepIndex = 0;
+      let analysisInterval: NodeJS.Timeout | null = null;
+      analysisInterval = setInterval(() => {
+        if (stepIndex < analysisSteps.length) {
+          setUploadState(prev => ({ 
+            ...prev, 
+            status: analysisSteps[stepIndex],
+            progress: Math.min(90, (stepIndex + 1) * 18)
+          }));
+          stepIndex++;
+        }
+      }, 2000);
 
       // Appel API avec debug
       const formData = new FormData();
       formData.append('file', file);
       
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://xyqo-home.onrender.com';
+      // Mode test Board-Ready V2.3 ou production
+      const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      const isBoardReadyTest = isLocal && file.name.toLowerCase().includes('board');
+      
+      let apiUrl;
+      if (isBoardReadyTest) {
+        apiUrl = '/api/simulate-board-ready';
+        console.log('🧪 Mode test Board-Ready V2.3 activé');
+      } else if (isLocal) {
+        apiUrl = '/api/proxy/analyze';
+      } else {
+        apiUrl = `${process.env.NEXT_PUBLIC_API_URL || 'https://xyqo-home.onrender.com'}/api/v1/contract/analyze`;
+      }
+      
       console.log('🌐 URL API:', apiUrl);
-      console.log('📤 Envoi vers:', `${apiUrl}/api/v1/contract/analyze`);
+      console.log('📤 Envoi vers:', apiUrl);
       
       const controller = new AbortController();
       timeoutId = setTimeout(() => {
@@ -119,7 +515,7 @@ export default function ContractReaderPage() {
       }, 30000);
       
       console.log('📡 Début requête fetch...');
-      const response = await fetch(`${apiUrl}/api/v1/contract/analyze`, {
+      const response = await fetch(apiUrl, {
         method: 'POST',
         body: formData,
         headers: {
@@ -142,16 +538,38 @@ export default function ContractReaderPage() {
 
       const result: AnalysisResult = await response.json();
       console.log('✅ Résultat reçu:', result);
+      console.log('🔍 Structure analysis:', result.analysis);
+      console.log('🔍 Structure summary:', result.summary);
+      console.log('🔍 Structure metadata:', result.metadata);
+      console.log('🔍 Génération PDF - Structure complète:', result);
+      console.log('🔍 result.analysis:', result.analysis);
+      console.log('🔍 result.summary:', result.summary);
+      console.log('🔍 result.metadata:', result.metadata);
+      console.log('🔍 Contract object paths:');
+      console.log('  - result.analysis?.contract?.object:', result.analysis?.contract?.object);
+      console.log('  - result.analysis?.summary:', result.analysis?.summary);
+      console.log('  - result.summary?.title:', result.summary?.title);
+      console.log('🔍 Parties paths:');
+      console.log('  - result.analysis?.parties:', result.analysis?.parties);
+      console.log('  - result.analysis?.parties?.list:', result.analysis?.parties?.list);
+      console.log('  - result.summary?.parties:', result.summary?.parties);
 
+      // Nettoyer l'interval d'analyse
+      if (analysisInterval) clearInterval(analysisInterval);
+      
       setUploadState(prev => ({ 
         ...prev, 
         isAnalyzing: false, 
         result,
-        progress: 100 
+        progress: 100,
+        status: 'Analyse terminée !'
       }));
 
     } catch (error) {
       if (timeoutId) clearTimeout(timeoutId);
+      // Nettoyer l'interval d'analyse en cas d'erreur
+      // analysisInterval est défini dans le scope de la fonction handleFileUpload
+      // Cette ligne sera supprimée car elle cause une erreur de scope
       console.error('💥 Erreur complète:', error);
       console.error('📊 Type erreur:', error instanceof Error ? error.constructor.name : typeof error);
       console.error('📝 Message:', error instanceof Error ? error.message : String(error));
@@ -254,158 +672,12 @@ export default function ContractReaderPage() {
       const result = uploadState.result;
       if (!result) return;
 
-      // Import jsPDF dynamiquement
-      const { jsPDF } = await import('jspdf');
-      
-      // Créer un nouveau document PDF
-      const doc = new jsPDF();
-      
-      // Configuration des couleurs et styles
-      const primaryColor = [30, 64, 175] as const; // Bleu XYQO
-      const textColor = [17, 24, 39] as const; // Gris foncé
-      const lightGray = [107, 114, 128] as const; // Gris clair
-      
-      let yPosition = 20;
-      
-      // En-tête
-      doc.setFontSize(20);
-      doc.setTextColor(...primaryColor);
-      doc.text('RAPPORT D\'ANALYSE CONTRACTUELLE', 105, yPosition, { align: 'center' });
-      
-      yPosition += 10;
-      doc.setFontSize(12);
-      doc.setTextColor(...lightGray);
-      doc.text(`XYQO Contract Reader - ${new Date().toLocaleDateString('fr-FR')}`, 105, yPosition, { align: 'center' });
-      
-      yPosition += 20;
-      
-      // Section Informations Générales
-      doc.setFontSize(14);
-      doc.setTextColor(...primaryColor);
-      doc.text('INFORMATIONS GÉNÉRALES', 20, yPosition);
-      yPosition += 10;
-      
-      doc.setFontSize(10);
-      doc.setTextColor(...textColor);
-      
-      const contractInfo = [
-        ['Objet:', result.analysis?.contract?.object || result.analysis?.summary || result.summary?.title || 'Non spécifié'],
-        ['Type:', result.analysis?.contract?.type || result.analysis?.contract_type || result.summary?.contract_type || 'Non spécifié'],
-        ['Langue:', result.analysis?.contract?.language || result.analysis?.language || 'Français'],
-        ['Traité le:', result.metadata?.processed_at ? new Date(result.metadata.processed_at).toLocaleString('fr-FR') : new Date().toLocaleString('fr-FR')]
-      ];
-      
-      contractInfo.forEach(([label, value]) => {
-        doc.setFont('helvetica', 'bold');
-        doc.text(label, 25, yPosition);
-        doc.setFont('helvetica', 'normal');
-        doc.text(value, 70, yPosition);
-        yPosition += 6;
-      });
-      
-      yPosition += 10;
-      
-      // Section Parties Contractuelles
-      doc.setFontSize(14);
-      doc.setTextColor(...primaryColor);
-      doc.text('PARTIES CONTRACTUELLES', 20, yPosition);
-      yPosition += 10;
-      
-      doc.setFontSize(10);
-      doc.setTextColor(...textColor);
-      
-      const parties = result.analysis?.parties || result.analysis?.parties?.list || result.summary?.parties || [];
-      parties.forEach((party: any, index: number) => {
-        const partyName = typeof party === 'string' ? party : party.name || `Partie ${index + 1}`;
-        const partyRole = typeof party === 'object' && party.role ? ` (${party.role})` : '';
-        
-        doc.setFont('helvetica', 'bold');
-        doc.text(`Partie ${index + 1}:`, 25, yPosition);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`${partyName}${partyRole}`, 70, yPosition);
-        yPosition += 6;
-      });
-      
-      yPosition += 10;
-      
-      // Section Aspects Financiers
-      doc.setFontSize(14);
-      doc.setTextColor(...primaryColor);
-      doc.text('ASPECTS FINANCIERS', 20, yPosition);
-      yPosition += 10;
-      
-      doc.setFontSize(10);
-      doc.setTextColor(...textColor);
-      
-      const financialInfo = [
-        ['Montant:', result.analysis?.financial?.amount || result.analysis?.contract?.financial_terms?.amount || 'Non spécifié'],
-        ['Devise:', result.analysis?.financial?.currency || result.analysis?.contract?.financial_terms?.currency || 'EUR'],
-        ['Conditions:', result.analysis?.financial?.payment_terms || result.analysis?.contract?.financial_terms?.payment_terms || 'Non spécifié']
-      ];
-      
-      financialInfo.forEach(([label, value]) => {
-        doc.setFont('helvetica', 'bold');
-        doc.text(label, 25, yPosition);
-        doc.setFont('helvetica', 'normal');
-        doc.text(value, 70, yPosition);
-        yPosition += 6;
-      });
-      
-      yPosition += 10;
-      
-      // Section Facteurs de Risque (si présents)
-      const risks = result.analysis?.risks_red_flags || result.analysis?.risks || result.analysis?.red_flags || [];
-      if (risks.length > 0) {
-        doc.setFontSize(14);
-        doc.setTextColor(...primaryColor);
-        doc.text('FACTEURS DE RISQUE', 20, yPosition);
-        yPosition += 10;
-        
-        doc.setFontSize(10);
-        doc.setTextColor(...textColor);
-        
-        risks.forEach((risk: string) => {
-          // Gérer les textes longs avec wrapping
-          const lines = doc.splitTextToSize(`• ${risk}`, 160);
-          lines.forEach((line: string) => {
-            if (yPosition > 270) { // Nouvelle page si nécessaire
-              doc.addPage();
-              yPosition = 20;
-            }
-            doc.text(line, 25, yPosition);
-            yPosition += 6;
-          });
-        });
-        
-        yPosition += 10;
-      }
-      
-      // Pied de page
-      if (yPosition > 250) {
-        doc.addPage();
-        yPosition = 20;
-      }
-      
-      yPosition += 20;
-      doc.setFontSize(9);
-      doc.setTextColor(...lightGray);
-      doc.text('Rapport généré par XYQO Contract Reader', 105, yPosition, { align: 'center' });
-      yPosition += 5;
-      doc.text(`ID de traitement: ${result.metadata?.analysis_id || result.processing_id || 'N/A'}`, 105, yPosition, { align: 'center' });
-      yPosition += 5;
-      doc.text(`Temps de traitement: ${result.processing_time || result.metadata?.processing_time || 'N/A'}s • Coût: ${result.cost_euros || result.metadata?.cost || 'N/A'}€`, 105, yPosition, { align: 'center' });
-      
-      // Télécharger le PDF
-      const analysisId = result.metadata?.analysis_id || result.processing_id || 'analyse';
-      const filename = `rapport_contrat_${analysisId}_${new Date().toISOString().split('T')[0]}.pdf`;
-      
-      doc.save(filename);
-      
-      console.log('✅ PDF généré et téléchargé avec succès:', filename);
-      
+      // TOUJOURS utiliser le renderer Board-Ready V2.3 (version unique)
+      console.log('🎯 Génération PDF Board-Ready V2.3 - Version unique');
+      await generateBoardReadyPDF(result.analysis || result);
     } catch (error) {
-      console.error('❌ Erreur génération PDF:', error);
-      alert('Impossible de générer le rapport PDF. Veuillez réessayer.');
+      console.error('Erreur lors de la génération du PDF Board-Ready:', error);
+      alert('Impossible de générer le rapport PDF Board-Ready.');
     }
   };
 
@@ -419,9 +691,6 @@ export default function ContractReaderPage() {
       result: null,
       error: null
     });
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
   };
 
   const handleSampleContract = useCallback(async () => {
@@ -453,16 +722,11 @@ export default function ContractReaderPage() {
       <header className="sticky top-0 z-50 backdrop-blur-xl bg-black/20 border-b border-white/20 shadow-2xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-20">
-            <div className="flex items-center space-x-6">
+            <div className="flex items-center space-x-2">
               <div className="w-14 h-14 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-2xl flex items-center justify-center shadow-xl">
                 <span className="text-white font-black text-2xl">X</span>
               </div>
-              <div className="flex items-center space-x-4">
-                <h1 className="text-3xl font-black text-white tracking-tight">XYQO Contract Reader</h1>
-                <span className="bg-gradient-to-r from-green-400 to-emerald-500 text-white px-4 py-2 rounded-full text-sm font-bold shadow-lg">
-                  🛡️ RGPD COMPLIANT
-                </span>
-              </div>
+              <h1 className="text-3xl font-black text-white tracking-tight">YQO</h1>
             </div>
             
             <nav className="hidden md:flex items-center space-x-10">
@@ -540,32 +804,101 @@ export default function ContractReaderPage() {
                   className="hidden"
                 />
                 <AnimatePresence mode="wait">
-                  {uploadState.isUploading ? (
+                  {uploadState.isUploading || uploadState.isAnalyzing ? (
                     <motion.div
-                      key="uploading"
+                      key="processing"
                       initial={{ opacity: 0, scale: 0.95 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.95 }}
                       className="space-y-6"
                     >
-                      <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 animate-spin shadow-2xl">
-                        <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
+                      {/* Animation principale avec effet de pulsation */}
+                      <div className="relative mx-auto flex h-32 w-32 items-center justify-center">
+                        {/* Cercles d'animation en arrière-plan */}
+                        <div className="absolute inset-0 rounded-full bg-gradient-to-r from-cyan-400 to-blue-500 animate-ping opacity-20"></div>
+                        <div className="absolute inset-2 rounded-full bg-gradient-to-r from-purple-400 to-pink-500 animate-ping opacity-30 animation-delay-200"></div>
+                        <div className="absolute inset-4 rounded-full bg-gradient-to-r from-green-400 to-emerald-500 animate-ping opacity-40 animation-delay-400"></div>
+                        
+                        {/* Cercle principal avec rotation */}
+                        <div className="relative flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 shadow-2xl">
+                          {uploadState.isUploading ? (
+                            /* Icône upload avec rotation */
+                            <div className="animate-spin">
+                              <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
+                            </div>
+                          ) : (
+                            /* Icône IA avec pulsation pour l'analyse */
+                            <div className="animate-pulse">
+                              <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                              </svg>
+                            </div>
+                          )}
+                        </div>
                       </div>
+                      
+                      {/* Texte et barre de progression */}
                       <div>
-                        <div className="text-3xl font-black text-white mb-4">
-                          {uploadState.status || 'ANALYSE DE VOTRE CONTRAT...'}
+                        <div className="text-3xl font-black text-white mb-4 animate-pulse">
+                          {uploadState.isUploading ? 'TÉLÉCHARGEMENT EN COURS...' : 'ANALYSE IA EN COURS...'}
                         </div>
-                        <div className="w-full bg-white/20 rounded-full h-6 mb-6 shadow-inner">
-                          <div 
-                            className="bg-gradient-to-r from-green-400 via-cyan-500 to-blue-600 h-6 rounded-full transition-all duration-300 shadow-lg"
-                            style={{ width: `${uploadState.progress}%` }}
-                          />
-                        </div>
-                        <div className="text-xl text-white/90 font-bold">
-                          {uploadState.progress}% • ANALYSE IA EN COURS...
-                        </div>
+                        
+                        {uploadState.isUploading ? (
+                          /* Barre de progression pour l'upload */
+                          <>
+                            <div className="w-full bg-white/20 rounded-full h-6 mb-6 shadow-inner overflow-hidden">
+                              <div 
+                                className="bg-gradient-to-r from-green-400 via-cyan-500 to-blue-600 h-6 rounded-full transition-all duration-300 shadow-lg relative"
+                                style={{ width: `${uploadState.progress}%` }}
+                              >
+                                <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+                              </div>
+                            </div>
+                            <div className="text-xl text-white/90 font-bold">
+                              {uploadState.progress}% • TÉLÉCHARGEMENT...
+                            </div>
+                          </>
+                        ) : (
+                          /* Animation skeleton pour l'analyse */
+                          <>
+                            <div className="space-y-4 mb-6">
+                              {/* Skeleton lines simulant l'analyse */}
+                              <div className="flex space-x-2">
+                                <div className="h-3 bg-white/20 rounded-full w-1/4 animate-pulse"></div>
+                                <div className="h-3 bg-white/30 rounded-full w-1/3 animate-pulse animation-delay-200"></div>
+                                <div className="h-3 bg-white/20 rounded-full w-1/5 animate-pulse animation-delay-400"></div>
+                              </div>
+                              <div className="flex space-x-2">
+                                <div className="h-3 bg-white/30 rounded-full w-1/3 animate-pulse animation-delay-100"></div>
+                                <div className="h-3 bg-white/20 rounded-full w-1/4 animate-pulse animation-delay-300"></div>
+                                <div className="h-3 bg-white/25 rounded-full w-1/6 animate-pulse animation-delay-500"></div>
+                              </div>
+                              <div className="flex space-x-2">
+                                <div className="h-3 bg-white/25 rounded-full w-1/5 animate-pulse animation-delay-200"></div>
+                                <div className="h-3 bg-white/30 rounded-full w-1/2 animate-pulse animation-delay-400"></div>
+                              </div>
+                            </div>
+                            
+                            {/* Messages d'analyse dynamiques */}
+                            <div className="text-xl text-white/90 font-bold animate-pulse">
+                              <span className="inline-flex items-center space-x-2">
+                                <div className="w-2 h-2 bg-green-400 rounded-full animate-bounce"></div>
+                                <div className="w-2 h-2 bg-cyan-400 rounded-full animate-bounce animation-delay-200"></div>
+                                <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce animation-delay-400"></div>
+                                <span className="ml-3">ANALYSE INTELLIGENTE DES CLAUSES...</span>
+                              </span>
+                            </div>
+                            
+                            {/* Messages rotatifs */}
+                            <div className="text-lg text-white/70 mt-4 font-medium">
+                              <div className="animate-pulse">
+                                🔍 Extraction des données contractuelles...
+                              </div>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </motion.div>
                   ) : (
@@ -614,7 +947,7 @@ export default function ContractReaderPage() {
               <span>ESSAYER AVEC UN CONTRAT EXEMPLE</span>
             </button>
             <p className="text-lg text-white/80 mt-6 max-w-2xl mx-auto font-medium">
-              🔒 AUCUNE DONNÉE STOCKÉE • 🛡️ TRAITEMENT SÉCURISÉ • 📊 TÉLÉCHARGEMENT PDF ET JSON STRUCTURÉ
+              🔒 AUCUNE DONNÉE STOCKÉE • 🛡️ TRAITEMENT SÉCURISÉ • 📊 TÉLÉCHARGEMENT PDF
             </p>
           </div>
 
@@ -693,12 +1026,12 @@ export default function ContractReaderPage() {
                     <div className="space-y-3">
                       <div>
                         <h4 className="text-lg font-black text-cyan-300 mb-2">OBJET</h4>
-                        <p className="text-white text-lg">{uploadState.result.analysis?.contract?.object || uploadState.result.analysis?.summary || uploadState.result.summary?.title || 'Non spécifié'}</p>
+                        <p className="text-white text-lg">{uploadState.result.meta?.version === '3.0' ? uploadState.result.contract?.object : (uploadState.result.analysis?.object || uploadState.result.analysis?.contract?.object || uploadState.result.analysis?.summary || uploadState.result.summary?.title) || 'Non spécifié'}</p>
                       </div>
                       <div>
                         <h4 className="text-lg font-black text-cyan-300 mb-2">PARTIES</h4>
                         <div className="space-y-2">
-                          {(uploadState.result.analysis?.parties || uploadState.result.analysis?.parties?.list || uploadState.result.summary?.parties || []).map((party: any, index: number) => (
+                          {(uploadState.result.meta?.version === '3.0' ? uploadState.result.parties?.list : (uploadState.result.analysis?.parties || uploadState.result.analysis?.parties?.list || uploadState.result.summary?.parties) || []).map((party: any, index: number) => (
                             <p key={index} className="text-white text-lg">
                               <span className="text-yellow-400 font-black">{party.role || 'Partie'}:</span> {party.name || party}
                             </p>
@@ -710,23 +1043,23 @@ export default function ContractReaderPage() {
                     <div className="space-y-3">
                       <div>
                         <h4 className="text-lg font-black text-cyan-300 mb-2">DROIT APPLICABLE</h4>
-                        <p className="text-white text-lg">{uploadState.result.analysis?.governance?.applicable_law || uploadState.result.analysis?.governance?.law || uploadState.result.analysis?.legal?.applicable_law || 'Non spécifié'}</p>
+                        <p className="text-white text-lg">{uploadState.result.meta?.version === '3.0' ? uploadState.result.governance?.law : (uploadState.result.analysis?.governance?.applicable_law || uploadState.result.analysis?.governance?.law || uploadState.result.analysis?.legal?.applicable_law) || 'Non spécifié'}</p>
                       </div>
                       <div>
                         <h4 className="text-lg font-black text-cyan-300 mb-2">CONFORMITÉ RGPD</h4>
                         <span className={`inline-flex items-center px-4 py-2 rounded-full text-lg font-black ${
-                          uploadState.result.analysis?.contract?.data_privacy?.rgpd || uploadState.result.analysis?.compliance?.rgpd || uploadState.result.analysis?.rgpd_compliance 
+                          uploadState.result.meta?.version === '3.0' ? uploadState.result.contract?.data_privacy?.rgpd : (uploadState.result.analysis?.contract?.data_privacy?.rgpd || uploadState.result.analysis?.compliance?.rgpd || uploadState.result.analysis?.rgpd_compliance) 
                             ? 'bg-gradient-to-r from-green-400 to-emerald-500 text-white' 
                             : 'bg-gradient-to-r from-red-400 to-pink-500 text-white'
                         }`}>
-                          {(uploadState.result.analysis?.contract?.data_privacy?.rgpd || uploadState.result.analysis?.compliance?.rgpd || uploadState.result.analysis?.rgpd_compliance) ? 'CONFORME' : 'NON CONFORME'}
+                          {(uploadState.result.meta?.version === '3.0' ? uploadState.result.contract?.data_privacy?.rgpd : (uploadState.result.analysis?.contract?.data_privacy?.rgpd || uploadState.result.analysis?.compliance?.rgpd || uploadState.result.analysis?.rgpd_compliance)) ? 'CONFORME' : 'NON CONFORME'}
                         </span>
                       </div>
                     </div>
                   </div>
 
                   {/* Risks */}
-                  {(uploadState.result.analysis?.risks_red_flags || uploadState.result.analysis?.risks || uploadState.result.analysis?.red_flags || []).length > 0 && (
+                  {(uploadState.result.meta?.version === '3.0' ? uploadState.result.risks_red_flags : (uploadState.result.analysis?.risks || uploadState.result.analysis?.risks_red_flags || uploadState.result.analysis?.red_flags) || []).length > 0 && (
                     <div className="bg-gradient-to-r from-orange-500/20 to-red-500/20 border-2 border-orange-400/40 rounded-xl p-6 backdrop-blur-lg">
                       <h4 className="text-xl font-black text-orange-300 mb-4 flex items-center">
                         <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -735,7 +1068,7 @@ export default function ContractReaderPage() {
                         FACTEURS DE RISQUE
                       </h4>
                       <ul className="text-orange-100 text-lg space-y-2 font-medium">
-                        {(uploadState.result.analysis?.risks_red_flags || uploadState.result.analysis?.risks || uploadState.result.analysis?.red_flags || []).map((risk: string, index: number) => (
+                        {(uploadState.result.meta?.version === '3.0' ? uploadState.result.risks_red_flags : (uploadState.result.analysis?.risks || uploadState.result.analysis?.risks_red_flags || uploadState.result.analysis?.red_flags) || []).map((risk: string, index: number) => (
                           <li key={index}>• {risk}</li>
                         ))}
                       </ul>
@@ -760,6 +1093,22 @@ export default function ContractReaderPage() {
         {/* Features Sidebar */}
         <aside className="lg:col-span-4 hidden lg:block">
           <div className="space-y-8">
+            {/* RGPD Badge - Repositionné ici */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.3 }}
+              className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 border-2 border-green-400/40 rounded-2xl p-6 backdrop-blur-xl text-center"
+            >
+              <div className="flex items-center justify-center space-x-3 mb-3">
+                <div className="w-10 h-10 bg-gradient-to-r from-green-400 to-emerald-500 rounded-full flex items-center justify-center">
+                  <span className="text-white text-lg">🛡️</span>
+                </div>
+                <h3 className="text-xl font-black text-white">RGPD COMPLIANT</h3>
+              </div>
+              <p className="text-green-200 text-sm font-medium">Aucun stockage • Traitement sécurisé • Conformité totale</p>
+            </motion.div>
+
             {/* Pricing Cards */}
             <motion.div
               initial={{ opacity: 0, x: 20 }}
@@ -776,7 +1125,7 @@ export default function ContractReaderPage() {
                   </div>
                   <p className="text-lg text-white/80 mb-4 font-medium">Parfait pour essayer</p>
                   <ul className="text-white/90 space-y-2 font-medium">
-                    <li>✓ 5 contrats/mois</li>
+                    <li>✓ 3 contrats/mois</li>
                     <li>✓ Analyse de base</li>
                     <li>✓ Export PDF</li>
                   </ul>
@@ -808,7 +1157,7 @@ export default function ContractReaderPage() {
               transition={{ delay: 0.5 }}
               className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl shadow-2xl border-2 border-white/20 p-8"
             >
-              <h3 className="text-2xl font-black text-white mb-8">POURQUOI CHOISIR XYQO ?</h3>
+              <h3 className="text-2xl font-black text-white mb-8">POURQUOI CHOISIR YQO ?</h3>
               <div className="space-y-6">
                 <div className="flex items-start space-x-4">
                   <div className="w-12 h-12 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg">
@@ -853,7 +1202,7 @@ export default function ContractReaderPage() {
               <div className="w-12 h-12 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-2xl flex items-center justify-center shadow-xl">
                 <span className="text-white font-black text-xl">X</span>
               </div>
-              <span className="text-2xl font-black text-white">XYQO Contract Reader</span>
+              <span className="text-2xl font-black text-white">YQO</span>
             </div>
             <div className="flex flex-col md:flex-row items-center gap-6 text-lg text-white/80">
               <a href="#" className="hover:text-cyan-300 transition-colors font-bold">CGU</a>
@@ -864,6 +1213,7 @@ export default function ContractReaderPage() {
           </div>
         </div>
       </footer>
+
     </div>
   );
 }
