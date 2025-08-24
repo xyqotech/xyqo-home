@@ -511,14 +511,8 @@ export default function ContractReaderPage() {
         apiUrl = '/api/simulate-board-ready';
         console.log('🧪 Mode test Board-Ready V2.3 activé');
       } else {
-        // Détection automatique de l'environnement pour éviter les erreurs CORS Safari
-        if (isLocal) {
-          // Environnement local : utiliser le backend local
-          apiUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8002'}/api/v1/contract/analyze`;
-        } else {
-          // Production : utiliser l'API backend de production (HTTPS)
-          apiUrl = `${process.env.NEXT_PUBLIC_API_URL || 'https://api.xyqo.fr'}/api/v1/contract/analyze`;
-        }
+        // Production : utiliser uniquement l'API backend de production
+        apiUrl = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/contract/analyze`;
       }
       
       console.log('🌐 URL API:', apiUrl);
