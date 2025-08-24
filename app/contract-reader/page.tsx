@@ -134,7 +134,7 @@ export default function ContractReaderPage() {
       
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(14);
-      doc.text('ANALYSE CONTRACTUELLE', 20, 13);
+      doc.text('RÉSUMÉ DE CONTRAT XYQO v3.1', 20, 13);
       doc.setFontSize(9);
       doc.text(`${new Date().toLocaleDateString('fr-FR')}`, 160, 13);
 
