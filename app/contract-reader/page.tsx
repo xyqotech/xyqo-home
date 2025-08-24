@@ -140,8 +140,9 @@ export default function ContractReaderPage() {
 
       yPos = 40;
 
-      // Mapping universel pour tous formats (Board-Ready V2.3, Legacy, Assurance)
-      const contractObject = data.details?.object || data.contract?.object || data.object || 'Analyse Contractuelle';
+      // Mapping universel pour tous formats (UniversalContractV3, Board-Ready V2.3, Legacy)
+      const contractObject = data.contract?.object || data.details?.object || data.object || 'Analyse Contractuelle';
+      const summaryPlain = data.summary_plain || data.executive_summary || 'Résumé non disponible';
       
       // === TITRE PRINCIPAL ===
       doc.setTextColor(...colors.primary);
@@ -361,24 +362,34 @@ export default function ContractReaderPage() {
       doc.text(financialModel, 80, yPos);
       yPos += 25;
 
-      // === RÉSUMÉ EXÉCUTIF ===
-      if (data.executive_summary && yPos < 250) {
+      // === RÉSUMÉ EXÉCUTIF BOARD-READY V2.3 ===
+      if (summaryPlain && yPos < 250) {
         doc.setFillColor(...colors.background);
-        doc.rect(15, yPos - 5, 180, 40, 'F');
+        doc.rect(15, yPos - 5, 180, 50, 'F');
         
-        doc.setTextColor(...colors.secondary);
+        doc.setTextColor(...colors.primary);
         doc.setFontSize(12);
-        doc.text('RÉSUMÉ EXÉCUTIF', 20, yPos + 5);
-        yPos += 12;
+        doc.text('📋 RÉSUMÉ EXÉCUTIF BOARD-READY V2.3', 25, yPos + 5);
         
         doc.setFontSize(9);
         doc.setTextColor(...colors.text);
-        const summary = data.executive_summary.substring(0, 400) + (data.executive_summary.length > 400 ? '...' : '');
-        const lines = doc.splitTextToSize(summary, 170);
-        lines.slice(0, 6).forEach((line: string) => {
+        
+        // Formatage structuré du résumé avec 9 rubriques universelles
+        const formattedSummary = summaryPlain.replace(/\n/g, ' ').substring(0, 600);
+        const lines = doc.splitTextToSize(formattedSummary, 170);
+        
+        yPos += 12;
+        lines.slice(0, 8).forEach((line: string) => {
           doc.text(line, 25, yPos);
-          yPos += 5;
+          yPos += 4;
         });
+        
+        if (lines.length > 8) {
+          doc.setTextColor(...colors.muted);
+          doc.text('[...] Résumé complet disponible dans le PDF téléchargeable', 25, yPos);
+          yPos += 4;
+        }
+        
         yPos += 10;
       }
 
@@ -499,10 +510,9 @@ export default function ContractReaderPage() {
       if (isBoardReadyTest) {
         apiUrl = '/api/simulate-board-ready';
         console.log('🧪 Mode test Board-Ready V2.3 activé');
-      } else if (isLocal) {
-        apiUrl = '/api/proxy/analyze';
       } else {
-        apiUrl = `${process.env.NEXT_PUBLIC_API_URL || 'https://xyqo-home.onrender.com'}/api/v1/contract/analyze`;
+        // Communication directe avec le backend local ou distant
+        apiUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8002'}/api/v1/contract/analyze`;
       }
       
       console.log('🌐 URL API:', apiUrl);
@@ -615,7 +625,7 @@ export default function ContractReaderPage() {
 
     try {
       console.log('🔄 Tentative de téléchargement PDF:', downloadUrl);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://xyqo-home.onrender.com';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8002';
       const fullUrl = `${apiUrl}${downloadUrl}`;
       
       console.log('📡 URL complète:', fullUrl);
