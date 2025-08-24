@@ -144,69 +144,16 @@ export default function ContractReaderPage() {
       const contractObject = data.contract?.object || data.details?.object || data.object || 'Analyse Contractuelle';
       const summaryPlain = data.summary_plain || data.executive_summary || 'Résumé non disponible';
       
-      // === TITRE PRINCIPAL ===
-      doc.setTextColor(...colors.primary);
-      doc.setFontSize(18);
-      doc.text(contractObject.toUpperCase(), 20, yPos);
-      yPos += 25;
-
-      // === CLASSIFICATION ===
-      doc.setFillColor(...colors.background);
-      doc.rect(15, yPos - 5, 180, 35, 'F');
-      
+      // === OBJET DU CONTRAT ===
       doc.setTextColor(...colors.secondary);
       doc.setFontSize(13);
-      doc.text('CLASSIFICATION', 20, yPos + 8);
-      yPos += 18;
+      doc.text('OBJET DU CONTRAT', 20, yPos);
+      yPos += 12;
       
+      doc.setTextColor(...colors.text);
       doc.setFontSize(11);
-      doc.setTextColor(...colors.text);
-      
-      // Détection automatique du type de contrat
-      let contractFamily = 'Non spécifié';
-      let contractType = 'Non spécifié';
-      
-      if (data.details?.object?.includes('assurance')) {
-        contractFamily = 'Assurance';
-        contractType = 'Habitation';
-      } else if (data.classification?.family) {
-        contractFamily = data.classification.family;
-        contractType = data.classification.parties_type || 'B2B';
-      } else if (data.family) {
-        contractFamily = data.family;
-        contractType = data.type || 'Commercial';
-      } else {
-        contractFamily = 'SaaS/Prestation';
-        contractType = 'B2B Commercial';
-      }
-      
-      // Labels et valeurs alignés
-      doc.setTextColor(...colors.secondary);
-      doc.text('Famille:', 25, yPos);
-      doc.setTextColor(...colors.text);
-      doc.text(contractFamily, 80, yPos);
-      yPos += 10;
-      
-      doc.setTextColor(...colors.secondary);
-      doc.text('Type:', 25, yPos);
-      doc.setTextColor(...colors.text);
-      doc.text(contractType, 80, yPos);
-      yPos += 10;
-      
-      // Barre de confiance améliorée
-      const confidence = data.classification?.confidence || data.confidence || 0.92;
-      const confPercent = Math.round(confidence * 100);
-      doc.setTextColor(...colors.secondary);
-      doc.text('Confiance:', 25, yPos);
-      doc.setTextColor(...colors.success);
-      doc.text(`${confPercent}%`, 80, yPos);
-      
-      // Barre visuelle plus large
-      doc.setFillColor(...colors.border);
-      doc.rect(110, yPos - 3, 70, 8, 'F');
-      doc.setFillColor(...colors.success);
-      doc.rect(110, yPos - 3, 70 * confidence, 8, 'F');
-      yPos += 25;
+      doc.text(contractObject, 20, yPos);
+      yPos += 20;
 
       // Mapping universel des parties
       let parties = [];
@@ -221,191 +168,120 @@ export default function ContractReaderPage() {
         ];
       }
 
-      // === PARTIES CONTRACTUELLES ===
-      const partiesHeight = Math.max(35, parties.length * 10 + 20);
-      doc.setFillColor(...colors.background);
-      doc.rect(15, yPos - 5, 180, partiesHeight, 'F');
-      
+      // === PARTIES ===
       doc.setTextColor(...colors.secondary);
       doc.setFontSize(13);
-      doc.text('PARTIES CONTRACTUELLES', 20, yPos + 8);
-      yPos += 18;
-      
-      doc.setFontSize(11);
-      doc.setTextColor(...colors.text);
-      
-      parties.slice(0, 3).forEach((party: any) => {
-        const role = party.role || party.type || 'Partie';
-        const name = party.name || party.entity || 'Non spécifié';
-        doc.setTextColor(...colors.secondary);
-        doc.text(`${role}:`, 25, yPos);
-        doc.setTextColor(...colors.text);
-        doc.text(name, 80, yPos);
-        yPos += 12;
-      });
-      yPos += 20;
-
-      // === CONFORMITÉ RGPD ===
-      doc.setFillColor(...colors.background);
-      doc.rect(15, yPos - 5, 180, 25, 'F');
-      
-      doc.setTextColor(...colors.secondary);
-      doc.setFontSize(13);
-      doc.text('CONFORMITÉ RGPD', 20, yPos + 8);
-      yPos += 18;
-      
-      // Mapping RGPD universel
-      let rgpdStatus = 'Conforme';
-      if (data.governance?.confidentiality?.includes('RGPD')) {
-        rgpdStatus = 'Conforme';
-      } else if (data.rgpd_status) {
-        rgpdStatus = data.rgpd_status;
-      } else if (data.compliance?.rgpd) {
-        rgpdStatus = data.compliance.rgpd;
-      }
-      
-      let statusColor: readonly [number, number, number] = colors.muted;
-      if (rgpdStatus === 'Conforme') statusColor = colors.success;
-      else if (rgpdStatus === 'Non conforme') statusColor = colors.danger;
-      else if (rgpdStatus === 'À vérifier') statusColor = colors.warning;
-      
-      doc.setTextColor(...colors.secondary);
-      doc.setFontSize(11);
-      doc.text('Statut:', 25, yPos);
-      doc.setTextColor(...statusColor);
-      doc.setFontSize(12);
-      doc.text(`● ${rgpdStatus}`, 80, yPos);
-      yPos += 25;
-
-      // Section Risques - mapping universel
-      let risks = [];
-      if (data.risks_red_flags) {
-        risks = data.risks_red_flags; // Board-Ready V2.3
-      } else if (Array.isArray(data.risks)) {
-        risks = data.risks; // Format assurance/legacy
-      } else {
-        risks = [
-          'Non-paiement de la première cotisation entraînant la nullité du contrat',
-          'Fausse déclaration pouvant annuler le contrat'
-        ];
-      }
-      
-      if (risks.length > 0) {
-        // === FACTEURS DE RISQUE ===
-        const risksHeight = risks.length * 12 + 25;
-        doc.setFillColor(...colors.background);
-        doc.rect(15, yPos - 5, 180, risksHeight, 'F');
-        
-        doc.setTextColor(...colors.secondary);
-        doc.setFontSize(13);
-        doc.text('FACTEURS DE RISQUE', 20, yPos + 8);
-        yPos += 18;
-        
-        doc.setFontSize(10);
-        doc.setTextColor(...colors.danger);
-        risks.slice(0, 4).forEach((risk: string) => {
-          const lines = doc.splitTextToSize(`• ${risk}`, 160);
-          lines.forEach((line: string) => {
-            doc.text(line, 25, yPos);
-            yPos += 6;
-          });
-          yPos += 6;
-        });
-        yPos += 20;
-      }
-
-      // === ASPECTS FINANCIERS ===
-      doc.setFillColor(...colors.background);
-      doc.rect(15, yPos - 5, 180, 40, 'F');
-      
-      doc.setTextColor(...colors.secondary);
-      doc.setFontSize(13);
-      doc.text('ASPECTS FINANCIERS', 20, yPos + 8);
-      yPos += 18;
-      
-      doc.setFontSize(11);
-      doc.setTextColor(...colors.text);
-      
-      // Mapping financier universel
-      let financialAmount = 'Non spécifié';
-      let financialCurrency = 'EUR';
-      let financialModel = 'Non spécifié';
-      
-      if (data.financials?.amounts?.[0]) {
-        // Format assurance
-        financialAmount = `${data.financials.amounts[0].amount} ${data.financials.amounts[0].currency}`;
-        financialCurrency = data.financials.amounts[0].currency;
-        financialModel = data.financials.pricing_model || 'Annuel';
-      } else if (data.financial) {
-        // Format Board-Ready V2.3
-        financialAmount = data.financial.amount || data.financial.value || 'Non spécifié';
-        financialCurrency = data.financial.currency || 'EUR';
-        financialModel = data.financial.model || data.financial.type || 'Non spécifié';
-      } else if (data.amount) {
-        // Format legacy
-        financialAmount = data.amount.value || 'Non spécifié';
-        financialCurrency = data.amount.currency || 'EUR';
-        financialModel = 'Commercial';
-      }
-      
-      doc.setTextColor(...colors.secondary);
-      doc.text('Montant:', 25, yPos);
-      doc.setTextColor(...colors.text);
-      doc.setFontSize(12);
-      doc.text(financialAmount, 80, yPos);
+      doc.text('PARTIES', 20, yPos);
       yPos += 12;
       
-      doc.setTextColor(...colors.secondary);
       doc.setFontSize(11);
-      doc.text('Modèle:', 25, yPos);
       doc.setTextColor(...colors.text);
-      doc.text(financialModel, 80, yPos);
-      yPos += 25;
-
-      // === RÉSUMÉ EXÉCUTIF BOARD-READY V2.3 ===
-      if (summaryPlain && yPos < 250) {
-        doc.setFillColor(...colors.background);
-        doc.rect(15, yPos - 5, 180, 50, 'F');
-        
-        doc.setTextColor(...colors.primary);
-        doc.setFontSize(12);
-        doc.text('📋 RÉSUMÉ EXÉCUTIF BOARD-READY V2.3', 25, yPos + 5);
-        
-        doc.setFontSize(9);
-        doc.setTextColor(...colors.text);
-        
-        // Formatage structuré du résumé avec 9 rubriques universelles
-        const formattedSummary = summaryPlain.replace(/\n/g, ' ').substring(0, 600);
-        const lines = doc.splitTextToSize(formattedSummary, 170);
-        
-        yPos += 12;
-        lines.slice(0, 8).forEach((line: string) => {
-          doc.text(line, 25, yPos);
-          yPos += 4;
+      
+      if (parties.length > 0) {
+        parties.slice(0, 3).forEach((party: any) => {
+          const role = party.role || party.type || 'Partie';
+          const name = party.name || party.entity || 'Non spécifié';
+          const address = party.address || '';
+          const siren = party.siren_siret || '';
+          
+          let partyInfo = `${name} (${role})`;
+          if (address) partyInfo += `\n${address}`;
+          if (siren) partyInfo += `\nSIREN/SIRET: ${siren}`;
+          
+          const lines = doc.splitTextToSize(partyInfo, 170);
+          lines.forEach((line: string) => {
+            doc.text(line, 20, yPos);
+            yPos += 6;
+          });
+          yPos += 8;
         });
+      } else {
+        doc.text('Aucune partie identifiée', 20, yPos);
+        yPos += 12;
+      }
+      yPos += 15;
+
+      // === RÉSUMÉ EXÉCUTIF ===
+      doc.setTextColor(...colors.secondary);
+      doc.setFontSize(13);
+      doc.text('RÉSUMÉ EXÉCUTIF', 20, yPos);
+      yPos += 12;
+      
+      doc.setTextColor(...colors.text);
+      doc.setFontSize(11);
+      const lines = doc.splitTextToSize(summaryPlain, 170);
+      lines.slice(0, 8).forEach((line: string) => {
+        doc.text(line, 20, yPos);
+        yPos += 6;
+      });
+      yPos += 15;
+
+      // === OBLIGATIONS ===
+      const obligations = data.obligations || {};
+      if (obligations.provider || obligations.client) {
+        doc.setTextColor(...colors.secondary);
+        doc.setFontSize(13);
+        doc.text('OBLIGATIONS', 20, yPos);
+        yPos += 12;
         
-        if (lines.length > 8) {
-          doc.setTextColor(...colors.muted);
-          doc.text('[...] Résumé complet disponible dans le PDF téléchargeable', 25, yPos);
-          yPos += 4;
+        doc.setTextColor(...colors.text);
+        doc.setFontSize(11);
+        
+        if (obligations.provider) {
+          doc.setTextColor(...colors.secondary);
+          doc.text('Obligations du prestataire:', 20, yPos);
+          yPos += 8;
+          doc.setTextColor(...colors.text);
+          obligations.provider.forEach((obligation: string) => {
+            doc.text(`• ${obligation}`, 25, yPos);
+            yPos += 6;
+          });
+          yPos += 8;
         }
         
-        yPos += 10;
+        if (obligations.client) {
+          doc.setTextColor(...colors.secondary);
+          doc.text('Obligations du client:', 20, yPos);
+          yPos += 8;
+          doc.setTextColor(...colors.text);
+          obligations.client.forEach((obligation: string) => {
+            doc.text(`• ${obligation}`, 25, yPos);
+            yPos += 6;
+          });
+        }
+        yPos += 15;
       }
 
-      // === FOOTER ===
-      doc.setFillColor(...colors.secondary);
-      doc.rect(0, 287, 210, 10, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(8);
-      doc.text('Confidentiel • Usage interne uniquement', 15, 293);
-      doc.text('Page 1', 190, 293);
+      // === RISQUES ET ALERTES ===
+      doc.setTextColor(...colors.secondary);
+      doc.setFontSize(13);
+      doc.text('RISQUES ET ALERTES', 20, yPos);
+      yPos += 12;
+      
+      doc.setTextColor(...colors.text);
+      doc.setFontSize(11);
+      const risks = data.risks || [];
+      if (risks.length > 0) {
+        risks.forEach((risk: string) => {
+          doc.text(`⚠️ ${risk}`, 20, yPos);
+          yPos += 8;
+        });
+      } else {
+        doc.text('Aucun risque identifié', 20, yPos);
+        yPos += 8;
+      }
+      yPos += 30;
 
-      // Télécharger le PDF Board-Ready
-      const filename = `rapport_board_ready_${new Date().toISOString().split('T')[0]}.pdf`;
+      // Footer
+      doc.setTextColor(...colors.text);
+      doc.setFontSize(9);
+      doc.text('Généré par XYQO Contract Analyzer v3.1', 20, yPos);
+
+      // Télécharger le PDF
+      const filename = `resume_contrat_xyqo_v3.1_${new Date().toISOString().split('T')[0]}.pdf`;
       doc.save(filename);
       
-      console.log('✅ PDF Board-Ready V2.3 généré:', filename);
+      console.log('✅ PDF XYQO v3.1 généré:', filename);
       
     } catch (error) {
       console.error('❌ Erreur génération PDF Board-Ready:', error);
