@@ -4,8 +4,8 @@ import path from 'path';
 
 export async function GET() {
   try {
-    // Utiliser le contrat de test existant depuis le backend
-    const sampleContractPath = '/Users/bassiroudiop/autopilot-demo/data/samples/contrat_SCF_JAS_WORK4YOU_28022023_01_DIOP_Bassirou.pdf';
+    // Utiliser un contrat de test générique
+    const sampleContractPath = path.join(process.cwd(), 'test-contracts', 'contrat_exemple_generique.txt');
     
     if (fs.existsSync(sampleContractPath)) {
       const fileBuffer = fs.readFileSync(sampleContractPath);
@@ -13,8 +13,8 @@ export async function GET() {
       return new NextResponse(fileBuffer, {
         status: 200,
         headers: {
-          'Content-Type': 'application/pdf',
-          'Content-Disposition': 'attachment; filename="contrat_exemple_XYQO.pdf"',
+          'Content-Type': 'text/plain',
+          'Content-Disposition': 'attachment; filename="contrat_exemple_XYQO.txt"',
           'Cache-Control': 'public, max-age=3600'
         }
       });

@@ -13,6 +13,7 @@ interface AnalysisResult {
     filename: string;
     analysis_id: string;
     download_url: string;
+    pdf_download_url?: string;
     processed_at: string;
     processing_time?: number;
     cost?: number;
@@ -104,7 +105,12 @@ export default function ContractReaderPage() {
     error: null
   });
 
+  const [showSuccessNotification, setShowSuccessNotification] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
 
   const generateBoardReadyPDF = async (data: any) => {
     try {
@@ -451,12 +457,21 @@ export default function ContractReaderPage() {
         progress: 100,
         status: 'Analyse terminée !'
       }));
-
+      
+      // UX Enhancement: Modal de completion + effets visuels
+      setShowCompletionModal(true);
+      setShowSuccessNotification(true);
+      setShowConfetti(true);
+      
+      // Auto-scroll vers résultats après 2 secondes
+      setTimeout(() => {
+        if (resultsRef.current) {
+          resultsRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+      }, 2000);
+      
     } catch (error) {
       if (timeoutId) window.clearTimeout(timeoutId);
-      // Nettoyer l'interval d'analyse en cas d'erreur
-      // analysisInterval est défini dans le scope de la fonction handleFileUpload
-      // Cette ligne sera supprimée car elle cause une erreur de scope
       console.error('💥 Erreur complète:', error);
       console.error('📊 Type erreur:', error instanceof Error ? error.constructor.name : typeof error);
       console.error('📝 Message:', error instanceof Error ? error.message : String(error));
@@ -484,75 +499,7 @@ export default function ContractReaderPage() {
     }
   };
 
-  const handleDownloadPDF = async () => {
-    const downloadUrl = uploadState.result?.metadata?.download_url || uploadState.result?.pdf_download_url;
-    const analysisId = uploadState.result?.metadata?.analysis_id || uploadState.result?.processing_id;
-    
-    if (!downloadUrl && !uploadState.result) {
-      console.error('Aucune analyse disponible pour générer le PDF');
-      return;
-    }
-    
-    // Si pas d'URL de téléchargement, générer directement le PDF de fallback
-    if (!downloadUrl) {
-      console.log('🔄 Pas d\'URL de téléchargement, génération PDF directe...');
-      generateFallbackPDF();
-      return;
-    }
-
-    try {
-      console.log('🔄 Tentative de téléchargement PDF:', downloadUrl);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8002';
-      const fullUrl = `${apiUrl}${downloadUrl}`;
-      
-      console.log('📡 URL complète:', fullUrl);
-      const response = await fetch(fullUrl);
-      
-      console.log('📥 Réponse téléchargement:', response.status, response.statusText);
-      
-      if (!response.ok) {
-        console.error('❌ Erreur téléchargement:', response.status, response.statusText);
-        
-        // Si l'endpoint n'existe pas, générer un PDF de fallback
-        if (response.status === 404) {
-          console.log('🔄 Génération PDF de fallback...');
-          generateFallbackPDF();
-          return;
-        }
-        
-        throw new Error(`Erreur ${response.status}: ${response.statusText}`);
-      }
-      
-      const blob = await response.blob();
-      console.log('📄 PDF reçu, taille:', blob.size, 'bytes');
-      
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `resume_contrat_${analysisId || 'analyse'}.pdf`;
-      a.target = '_blank';
-      document.body.appendChild(a);
-      a.click();
-      
-      // Ouvrir aussi le PDF dans le navigateur pour visualisation
-      setTimeout(() => {
-        window.open(url, '_blank');
-      }, 100);
-      
-      // Nettoyer après un délai pour permettre l'ouverture
-      setTimeout(() => {
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      }, 1000);
-      
-    } catch (error) {
-      console.error('💥 Erreur téléchargement PDF:', error);
-      
-      // En cas d'erreur, générer un PDF de fallback
-      console.log('🔄 Génération PDF de fallback suite à l\'erreur...');
-      generateFallbackPDF();
-    }
-  };
+  // Fonction supprimée - utilisation du lien direct maintenant
 
   const generateFallbackPDF = async () => {
     try {
@@ -616,23 +563,15 @@ export default function ContractReaderPage() {
               <h1 className="text-3xl font-black text-white tracking-tight">YQO</h1>
             </div>
             
-            <nav className="hidden md:flex items-center space-x-10">
-              <a href="#" className="text-white/90 hover:text-cyan-300 font-bold text-lg transition-colors">Fonctionnalités</a>
-              <a href="#" className="text-white/90 hover:text-cyan-300 font-bold text-lg transition-colors">Tarifs</a>
-              <a href="#" className="text-white/90 hover:text-cyan-300 font-bold text-lg transition-colors">Documentation</a>
-              <button className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white px-8 py-3 rounded-xl font-black text-lg transition-all shadow-xl hover:shadow-2xl transform hover:scale-105">
-                COMMENCER
-              </button>
-            </nav>
           </div>
         </div>
       </header>
 
-      {/* Main Content Grid */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 grid grid-cols-1 lg:grid-cols-12 gap-12">
+      {/* Main Content */}
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
         
         {/* Hero Section */}
-        <section className="lg:col-span-8">
+        <section>
           {/* Hero Title */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -652,15 +591,6 @@ export default function ContractReaderPage() {
             <p className="text-xl text-white/90 max-w-3xl mx-auto mb-8 leading-relaxed font-medium">
               Transformez votre processus de révision contractuelle avec une analyse IA. Extrayez les clauses clés, identifiez les risques et générez des rapports professionnels en quelques secondes.
             </p>
-            <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
-              <button className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-12 py-6 rounded-2xl text-2xl font-black transition-all duration-200 shadow-2xl hover:shadow-3xl transform hover:scale-110">
-                ANALYSE GRATUITE
-              </button>
-              <button className="text-white hover:text-cyan-300 px-12 py-6 rounded-2xl text-2xl font-bold transition-colors flex items-center space-x-3 border-2 border-white/30 hover:border-cyan-300">
-                <span>🎥</span>
-                <span>VOIR LA DÉMO</span>
-              </button>
-            </div>
           </motion.div>
 
           {/* Upload Zone */}
@@ -824,19 +754,6 @@ export default function ContractReaderPage() {
             </div>
           </motion.div>
 
-          {/* Sample Contract CTA */}
-          <div className="text-center mb-20">
-            <button
-              onClick={handleSampleContract}
-              className="inline-flex items-center space-x-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-10 py-5 rounded-2xl font-black text-xl transition-all shadow-2xl hover:shadow-3xl transform hover:scale-110"
-            >
-              <span className="text-2xl">📄</span>
-              <span>ESSAYER AVEC UN CONTRAT EXEMPLE</span>
-            </button>
-            <p className="text-lg text-white/80 mt-6 max-w-2xl mx-auto font-medium">
-              🔒 AUCUNE DONNÉE STOCKÉE • 🛡️ TRAITEMENT SÉCURISÉ • 📊 TÉLÉCHARGEMENT PDF
-            </p>
-          </div>
 
           {/* Error Message */}
           <AnimatePresence>
@@ -869,40 +786,110 @@ export default function ContractReaderPage() {
           <AnimatePresence>
             {uploadState.result && (
               <motion.div
+                ref={resultsRef}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 20 }}
                 className="space-y-6"
               >
-                {/* Success Header */}
-                <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 border-2 border-green-400/40 rounded-2xl p-8 backdrop-blur-lg">
+                {/* Success Header avec animation d'entrée */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{ duration: 0.6, ease: "easeOut" }}
+                  className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 border-2 border-green-400/40 rounded-2xl p-8 backdrop-blur-lg shadow-2xl"
+                >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4">
-                      <div className="w-12 h-12 bg-gradient-to-r from-green-400 to-emerald-500 rounded-full flex items-center justify-center shadow-lg">
+                      <motion.div
+                        initial={{ scale: 0, rotate: -180 }}
+                        animate={{ scale: 1, rotate: 0 }}
+                        transition={{ delay: 0.3, type: "spring", stiffness: 200 }}
+                        className="w-12 h-12 bg-gradient-to-r from-green-400 to-emerald-500 rounded-full flex items-center justify-center shadow-lg"
+                      >
                         <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          <motion.path
+                            initial={{ pathLength: 0 }}
+                            animate={{ pathLength: 1 }}
+                            transition={{ delay: 0.6, duration: 0.8 }}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={3}
+                            d="M5 13l4 4L19 7"
+                          />
                         </svg>
-                      </div>
+                      </motion.div>
                       <div>
-                        <h3 className="text-2xl font-black text-white">ANALYSE TERMINÉE</h3>
-                        <p className="text-green-200 text-lg font-medium">
+                        <motion.h3
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.4 }}
+                          className="text-2xl font-black text-white"
+                        >
+                          ✅ ANALYSE TERMINÉE
+                        </motion.h3>
+                        <motion.p
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.5 }}
+                          className="text-green-200 text-lg font-medium"
+                        >
                           Traité avec succès • {uploadState.result.metadata?.processed_at ? 
                             new Date(uploadState.result.metadata.processed_at).toLocaleString() : 
                             'Maintenant'}
-                        </p>
+                        </motion.p>
                       </div>
                     </div>
-                    <button
-                      onClick={handleDownloadPDF}
-                      className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white px-8 py-4 rounded-2xl font-black text-lg transition-all duration-200 flex items-center space-x-3 shadow-2xl hover:shadow-3xl transform hover:scale-105"
+                    {/* Lien direct vers PDF - Solution simple et fiable */}
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: 0.7 }}
+                      className="space-y-3"
                     >
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      <span>TÉLÉCHARGER LE RAPPORT PDF</span>
-                    </button>
+                      <motion.a
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8002'}${uploadState.result?.metadata?.pdf_download_url || uploadState.result?.pdf_download_url}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white px-8 py-4 rounded-2xl font-black text-lg transition-all duration-200 flex items-center space-x-3 shadow-2xl hover:shadow-3xl"
+                      >
+                        <motion.svg
+                          animate={{ y: [0, -2, 0] }}
+                          transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+                          className="w-6 h-6"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </motion.svg>
+                        <span>TÉLÉCHARGER LE RAPPORT PDF</span>
+                      </motion.a>
+                      
+                      {/* URL visible pour debug/copie */}
+                      <div className="text-xs text-white/60 font-mono bg-black/20 px-3 py-2 rounded-lg">
+                        URL: {uploadState.result?.metadata?.pdf_download_url || uploadState.result?.pdf_download_url}
+                      </div>
+                    </motion.div>
                   </div>
-                </div>
+                  
+                  {/* Indicateur visuel supplémentaire */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.8 }}
+                    className="mt-4 pt-4 border-t border-green-400/30"
+                  >
+                    <div className="flex items-center justify-center space-x-2 text-green-200">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span className="text-sm font-medium">Votre rapport détaillé est disponible ci-dessous</span>
+                    </div>
+                  </motion.div>
+                </motion.div>
 
                 {/* Contract Summary */}
                 <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl p-8 border-2 border-white/20 shadow-2xl">
@@ -975,110 +962,23 @@ export default function ContractReaderPage() {
               </motion.div>
             )}
           </AnimatePresence>
+          
+          {/* RGPD Badge - Centré sous l'upload */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+            className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 border-2 border-green-400/40 rounded-2xl p-6 backdrop-blur-xl text-center max-w-md mx-auto mt-8"
+          >
+            <div className="flex items-center justify-center space-x-3 mb-3">
+              <div className="w-10 h-10 bg-gradient-to-r from-green-400 to-emerald-500 rounded-full flex items-center justify-center">
+                <span className="text-white text-lg">🛡️</span>
+              </div>
+              <h3 className="text-xl font-black text-white">RGPD COMPLIANT</h3>
+            </div>
+            <p className="text-green-200 text-sm font-medium">Aucun stockage • Traitement sécurisé • Conformité totale</p>
+          </motion.div>
         </section>
-
-        {/* Features Sidebar */}
-        <aside className="lg:col-span-4 hidden lg:block">
-          <div className="space-y-8">
-            {/* RGPD Badge - Repositionné ici */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.3 }}
-              className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 border-2 border-green-400/40 rounded-2xl p-6 backdrop-blur-xl text-center"
-            >
-              <div className="flex items-center justify-center space-x-3 mb-3">
-                <div className="w-10 h-10 bg-gradient-to-r from-green-400 to-emerald-500 rounded-full flex items-center justify-center">
-                  <span className="text-white text-lg">🛡️</span>
-                </div>
-                <h3 className="text-xl font-black text-white">RGPD COMPLIANT</h3>
-              </div>
-              <p className="text-green-200 text-sm font-medium">Aucun stockage • Traitement sécurisé • Conformité totale</p>
-            </motion.div>
-
-            {/* Pricing Cards */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.4 }}
-              className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl shadow-2xl border-2 border-white/20 p-8"
-            >
-              <h3 className="text-2xl font-black text-white mb-8">TARIFS FLEXIBLES</h3>
-              <div className="space-y-6">
-                <div className="border-2 border-cyan-400/40 rounded-xl p-6 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 backdrop-blur-lg">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-black text-white text-lg">GRATUIT</h4>
-                    <span className="text-3xl font-black text-cyan-300">0€</span>
-                  </div>
-                  <p className="text-lg text-white/80 mb-4 font-medium">Parfait pour essayer</p>
-                  <ul className="text-white/90 space-y-2 font-medium">
-                    <li>✓ 3 contrats/mois</li>
-                    <li>✓ Analyse de base</li>
-                    <li>✓ Export PDF</li>
-                  </ul>
-                </div>
-                
-                <div className="border-2 border-yellow-400 rounded-xl p-6 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 backdrop-blur-lg relative">
-                  <div className="absolute -top-3 left-6 bg-gradient-to-r from-yellow-400 to-orange-500 text-black text-sm px-4 py-1 rounded-full font-black">
-                    POPULAIRE
-                  </div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-black text-white text-lg">PRO</h4>
-                    <span className="text-3xl font-black text-yellow-300">29€</span>
-                  </div>
-                  <p className="text-lg text-white/80 mb-4 font-medium">Pour les professionnels</p>
-                  <ul className="text-white/90 space-y-2 font-medium">
-                    <li>✓ Contrats illimités</li>
-                    <li>✓ Analyse IA avancée</li>
-                    <li>✓ Accès API</li>
-                    <li>✓ Support prioritaire</li>
-                  </ul>
-                </div>
-              </div>
-            </motion.div>
-
-            {/* Features Block */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.5 }}
-              className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl shadow-2xl border-2 border-white/20 p-8"
-            >
-              <h3 className="text-2xl font-black text-white mb-8">POURQUOI CHOISIR YQO ?</h3>
-              <div className="space-y-6">
-                <div className="flex items-start space-x-4">
-                  <div className="w-12 h-12 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg">
-                    <span className="text-2xl">🤖</span>
-                  </div>
-                  <div>
-                    <h4 className="font-black text-white text-lg mb-2">ANALYSE PAR IA</h4>
-                    <p className="text-white/80 font-medium">NLP avancé pour une analyse précise des contrats</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-start space-x-4">
-                  <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg">
-                    <span className="text-2xl">📄</span>
-                  </div>
-                  <div>
-                    <h4 className="font-black text-white text-lg mb-2">RAPPORTS PROFESSIONNELS</h4>
-                    <p className="text-white/80 font-medium">Résumés exécutifs + JSON structuré</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-start space-x-4">
-                  <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg">
-                    <span className="text-2xl">🛡️</span>
-                  </div>
-                  <div>
-                    <h4 className="font-black text-white text-lg mb-2">CONFORME RGPD</h4>
-                    <p className="text-white/80 font-medium">Aucun stockage, traitement sécurisé</p>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        </aside>
       </div>
 
       {/* Footer */}
@@ -1095,7 +995,7 @@ export default function ContractReaderPage() {
               <a href="#" className="hover:text-cyan-300 transition-colors font-bold">CGU</a>
               <a href="#" className="hover:text-cyan-300 transition-colors font-bold">Confidentialité</a>
               <a href="#" className="hover:text-cyan-300 transition-colors font-bold">Support</a>
-              <span className="text-sm font-medium">Propulsé par FastAPI • GPT-4o-mini • Claude</span>
+              <span className="text-sm font-medium">© 2024 XYQO - Analyse de contrats par IA</span>
             </div>
           </div>
         </div>
