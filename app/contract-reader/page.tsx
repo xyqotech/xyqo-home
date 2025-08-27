@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Support pour format V3 et format legacy
@@ -105,11 +105,39 @@ export default function ContractReaderPage() {
     error: null
   });
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Prevent default drag behaviors only outside drop zone
+  useEffect(() => {
+    const handleDragOver = (e: DragEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-drop-zone]')) {
+        e.preventDefault();
+        e.dataTransfer!.dropEffect = 'none';
+      }
+    };
+
+    const handleDrop = (e: DragEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-drop-zone]')) {
+        e.preventDefault();
+        return false;
+      }
+    };
+
+    document.addEventListener('dragover', handleDragOver);
+    document.addEventListener('drop', handleDrop);
+
+    return () => {
+      document.removeEventListener('dragover', handleDragOver);
+      document.removeEventListener('drop', handleDrop);
+    };
+  }, []);
+
   const [showSuccessNotification, setShowSuccessNotification] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
 
   const generateBoardReadyPDF = async (data: any) => {
@@ -295,42 +323,83 @@ export default function ContractReaderPage() {
     }
   };
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
+  // Universal drag & drop handlers
+  const [dragCounter, setDragCounter] = useState(0);
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-    setUploadState(prev => ({ ...prev, isDragging: true }));
+    e.stopPropagation();
+    setDragCounter(prev => prev + 1);
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setUploadState(prev => ({ ...prev, isDragging: true }));
+    }
   }, []);
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-    setUploadState(prev => ({ ...prev, isDragging: false }));
+    e.stopPropagation();
+    setDragCounter(prev => {
+      const newCount = prev - 1;
+      if (newCount === 0) {
+        setUploadState(prev => ({ ...prev, isDragging: false }));
+      }
+      return newCount;
+    });
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'copy';
   }, []);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
+    setDragCounter(0);
     setUploadState(prev => ({ ...prev, isDragging: false }));
     
-    const files = Array.from(e.dataTransfer.files);
-    const pdfFile = files.find(file => file.type === 'application/pdf');
+    console.log('🎯 Drop event triggered');
+    const files = e.dataTransfer.files;
+    console.log('📁 Files dropped:', files.length);
     
-    if (pdfFile) {
-      handleFileUpload(pdfFile);
+    if (files.length > 0) {
+      const file = files[0];
+      console.log('📄 File details:', {
+        name: file.name,
+        type: file.type,
+        size: file.size
+      });
+      
+      // Accept any file that looks like a PDF
+      if (file.type === 'application/pdf' || 
+          file.name.toLowerCase().endsWith('.pdf') ||
+          file.type === '' && file.name.toLowerCase().includes('.pdf')) {
+        console.log('✅ File accepted, starting upload');
+        handleFileUpload(file);
+      } else {
+        console.log('❌ File rejected:', file.type, file.name);
+        setUploadState(prev => ({ 
+          ...prev, 
+          error: `Type de fichier non supporté: ${file.type || 'inconnu'}. Seuls les PDFs sont acceptés.` 
+        }));
+      }
     } else {
-      setUploadState(prev => ({ 
-        ...prev, 
-        error: 'Veuillez sélectionner un fichier PDF valide' 
-      }));
+      console.log('❌ No files in drop');
     }
   }, []);
 
-  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (file) {
       handleFileUpload(file);
     }
   }, []);
 
+
   const handleFileUpload = async (file: File) => {
     console.log('🔄 Début upload fichier:', file.name, file.size, 'bytes');
+// ...
     
     setUploadState(prev => ({ 
       ...prev, 
@@ -607,11 +676,17 @@ export default function ContractReaderPage() {
               </div>
               
               <div
+                data-drop-zone
                 className={`group cursor-pointer border-4 border-dashed rounded-2xl p-16 text-center transition-all duration-300 ${
                   uploadState.isDragging
                     ? 'border-cyan-400 bg-cyan-500/20 scale-[1.05] shadow-2xl'
                     : 'border-white/40 hover:border-cyan-400 hover:bg-white/10 hover:scale-[1.02]'
                 }`}
+                onDragEnter={handleDragEnter}
+                onDragLeave={handleDragLeave}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
               >
                 <input 
                   ref={fileInputRef} 
