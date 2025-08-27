@@ -460,23 +460,17 @@ export default function ContractReaderPage() {
       let apiUrl;
       if (isBoardReadyTest) {
         apiUrl = '/api/simulate-board-ready';
-        console.log('🧪 Mode test Board-Ready V2.3 activé');
       } else {
         // Production : utiliser uniquement l'API backend de production
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8002';
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
         apiUrl = `${baseUrl}/api/v1/contract/analyze`;
       }
       
-      console.log('🌐 URL API:', apiUrl);
-      console.log('📤 Envoi vers:', apiUrl);
       
       const controller = new AbortController();
       timeoutId = window.setTimeout(() => {
-        console.log('⏰ Timeout déclenché après 30s');
         controller.abort();
       }, 30000);
-      
-      console.log('📡 Début requête fetch...');
       const response = await fetch(apiUrl, {
         method: 'POST',
         body: formData,
@@ -489,8 +483,6 @@ export default function ContractReaderPage() {
       });
       
       if (timeoutId) window.clearTimeout(timeoutId);
-      console.log('📥 Réponse reçue:', response.status, response.statusText);
-      console.log('📋 Headers:', Object.fromEntries(response.headers.entries()));
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -499,22 +491,6 @@ export default function ContractReaderPage() {
       }
 
       const result: AnalysisResult = await response.json();
-      console.log('✅ Résultat reçu:', result);
-      console.log('🔍 Structure analysis:', result.analysis);
-      console.log('🔍 Structure summary:', result.summary);
-      console.log('🔍 Structure metadata:', result.metadata);
-      console.log('🔍 Génération PDF - Structure complète:', result);
-      console.log('🔍 result.analysis:', result.analysis);
-      console.log('🔍 result.summary:', result.summary);
-      console.log('🔍 result.metadata:', result.metadata);
-      console.log('🔍 Contract object paths:');
-      console.log('  - result.analysis?.contract?.object:', result.analysis?.contract?.object);
-      console.log('  - result.analysis?.summary:', result.analysis?.summary);
-      console.log('  - result.summary?.title:', result.summary?.title);
-      console.log('🔍 Parties paths:');
-      console.log('  - result.analysis?.parties:', result.analysis?.parties);
-      console.log('  - result.analysis?.parties?.list:', result.analysis?.parties?.list);
-      console.log('  - result.summary?.parties:', result.summary?.parties);
 
       // Nettoyer l'interval d'analyse
       if (analysisInterval) window.clearInterval(analysisInterval);
@@ -925,7 +901,7 @@ export default function ContractReaderPage() {
                       <motion.a
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
-                        href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8002'}${uploadState.result?.metadata?.pdf_download_url || uploadState.result?.pdf_download_url}`}
+                        href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}${uploadState.result?.metadata?.pdf_download_url || uploadState.result?.pdf_download_url}`}
                         download="rapport_contrat_xyqo.pdf"
                         className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white px-8 py-4 rounded-2xl font-black text-lg transition-all duration-200 flex items-center space-x-3 shadow-2xl hover:shadow-3xl"
                       >
