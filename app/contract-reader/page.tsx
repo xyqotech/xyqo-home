@@ -315,7 +315,6 @@ export default function ContractReaderPage() {
       const filename = `resume_contrat_xyqo_v3.1_${new Date().toISOString().split('T')[0]}.pdf`;
       doc.save(filename);
       
-      console.log('✅ PDF XYQO v3.1 généré:', filename);
       
     } catch (error) {
       console.error('❌ Erreur génération PDF Board-Ready:', error);
@@ -359,33 +358,22 @@ export default function ContractReaderPage() {
     setDragCounter(0);
     setUploadState(prev => ({ ...prev, isDragging: false }));
     
-    console.log('🎯 Drop event triggered');
     const files = e.dataTransfer.files;
-    console.log('📁 Files dropped:', files.length);
     
     if (files.length > 0) {
       const file = files[0];
-      console.log('📄 File details:', {
-        name: file.name,
-        type: file.type,
-        size: file.size
-      });
       
       // Accept any file that looks like a PDF
       if (file.type === 'application/pdf' || 
           file.name.toLowerCase().endsWith('.pdf') ||
           file.type === '' && file.name.toLowerCase().includes('.pdf')) {
-        console.log('✅ File accepted, starting upload');
         handleFileUpload(file);
       } else {
-        console.log('❌ File rejected:', file.type, file.name);
         setUploadState(prev => ({ 
           ...prev, 
           error: `Type de fichier non supporté: ${file.type || 'inconnu'}. Seuls les PDFs sont acceptés.` 
         }));
       }
-    } else {
-      console.log('❌ No files in drop');
     }
   }, []);
 
@@ -398,7 +386,6 @@ export default function ContractReaderPage() {
 
 
   const handleFileUpload = async (file: File) => {
-    console.log('🔄 Début upload fichier:', file.name, file.size, 'bytes');
 // ...
     
     setUploadState(prev => ({ 
@@ -460,23 +447,16 @@ export default function ContractReaderPage() {
       let apiUrl;
       if (isBoardReadyTest) {
         apiUrl = '/api/simulate-board-ready';
-        console.log('🧪 Mode test Board-Ready V2.3 activé');
       } else {
         // Production : utiliser uniquement l'API backend de production
         const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8002';
         apiUrl = `${baseUrl}/api/v1/contract/analyze`;
       }
       
-      console.log('🌐 URL API:', apiUrl);
-      console.log('📤 Envoi vers:', apiUrl);
-      
       const controller = new AbortController();
       timeoutId = window.setTimeout(() => {
-        console.log('⏰ Timeout déclenché après 30s');
         controller.abort();
       }, 30000);
-      
-      console.log('📡 Début requête fetch...');
       const response = await fetch(apiUrl, {
         method: 'POST',
         body: formData,
@@ -489,8 +469,6 @@ export default function ContractReaderPage() {
       });
       
       if (timeoutId) window.clearTimeout(timeoutId);
-      console.log('📥 Réponse reçue:', response.status, response.statusText);
-      console.log('📋 Headers:', Object.fromEntries(response.headers.entries()));
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -499,22 +477,6 @@ export default function ContractReaderPage() {
       }
 
       const result: AnalysisResult = await response.json();
-      console.log('✅ Résultat reçu:', result);
-      console.log('🔍 Structure analysis:', result.analysis);
-      console.log('🔍 Structure summary:', result.summary);
-      console.log('🔍 Structure metadata:', result.metadata);
-      console.log('🔍 Génération PDF - Structure complète:', result);
-      console.log('🔍 result.analysis:', result.analysis);
-      console.log('🔍 result.summary:', result.summary);
-      console.log('🔍 result.metadata:', result.metadata);
-      console.log('🔍 Contract object paths:');
-      console.log('  - result.analysis?.contract?.object:', result.analysis?.contract?.object);
-      console.log('  - result.analysis?.summary:', result.analysis?.summary);
-      console.log('  - result.summary?.title:', result.summary?.title);
-      console.log('🔍 Parties paths:');
-      console.log('  - result.analysis?.parties:', result.analysis?.parties);
-      console.log('  - result.analysis?.parties?.list:', result.analysis?.parties?.list);
-      console.log('  - result.summary?.parties:', result.summary?.parties);
 
       // Nettoyer l'interval d'analyse
       if (analysisInterval) window.clearInterval(analysisInterval);
@@ -576,7 +538,6 @@ export default function ContractReaderPage() {
       if (!result) return;
 
       // TOUJOURS utiliser le renderer Board-Ready V2.3 (version unique)
-      console.log('🎯 Génération PDF Board-Ready V2.3 - Version unique');
       await generateBoardReadyPDF(result.analysis || result);
     } catch (error) {
       console.error('Erreur lors de la génération du PDF Board-Ready:', error);
