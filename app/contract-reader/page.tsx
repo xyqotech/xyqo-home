@@ -943,10 +943,6 @@ export default function ContractReaderPage() {
                         <span>TÉLÉCHARGER LE RAPPORT PDF</span>
                       </motion.a>
                       
-                      {/* URL visible pour debug/copie */}
-                      <div className="text-xs text-white/60 font-mono bg-black/20 px-3 py-2 rounded-lg">
-                        URL: {uploadState.result?.metadata?.pdf_download_url || uploadState.result?.pdf_download_url}
-                      </div>
                     </motion.div>
                   </div>
                   
