@@ -926,8 +926,7 @@ export default function ContractReaderPage() {
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8002'}${uploadState.result?.metadata?.pdf_download_url || uploadState.result?.pdf_download_url}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                        download="rapport_contrat_xyqo.pdf"
                         className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white px-8 py-4 rounded-2xl font-black text-lg transition-all duration-200 flex items-center space-x-3 shadow-2xl hover:shadow-3xl"
                       >
                         <motion.svg
