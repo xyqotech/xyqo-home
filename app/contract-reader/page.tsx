@@ -1041,7 +1041,7 @@ export default function ContractReaderPage() {
               <a href="#" className="hover:text-cyan-300 transition-colors font-bold">CGU</a>
               <a href="#" className="hover:text-cyan-300 transition-colors font-bold">Confidentialité</a>
               <a href="#" className="hover:text-cyan-300 transition-colors font-bold">Support</a>
-              <span className="text-sm font-medium">© 2024 XYQO - Analyse de contrats par IA</span>
+              <span className="text-sm font-medium">© 2025 XYQO – AI & Automation Solutions</span>
             </div>
           </div>
         </div>
