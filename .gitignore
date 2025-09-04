@@ -34,3 +34,16 @@ xyqopay/
 
 # TypeScript
 next-env.d.ts
+# OS/IDE
+.DS_Store
+
+# Build outputs
+.next/
+out/
+
+# Env secrets
+.env
+.env.local
+.env.production
+.env.development
+.env.test
