@@ -601,12 +601,12 @@ export default function ContractReaderPage() {
       <header className="sticky top-0 z-50 backdrop-blur-xl bg-black/20 border-b border-white/20 shadow-2xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-20">
-            <div className="flex items-center space-x-2">
+            <a href="https://www.xyqo.ai/" target="_blank" rel="noopener noreferrer" className="flex items-center space-x-2 hover:opacity-80 transition-opacity">
               <div className="w-14 h-14 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-2xl flex items-center justify-center shadow-xl">
                 <span className="text-white font-black text-2xl">X</span>
               </div>
-              <a href="https://www.xyqo.ai/" target="_blank" rel="noopener noreferrer" className="text-3xl font-black text-white tracking-tight hover:text-cyan-300 transition-colors">YQO</a>
-            </div>
+              <span className="text-3xl font-black text-white tracking-tight">YQO</span>
+            </a>
             
           </div>
         </div>
@@ -1031,12 +1031,12 @@ export default function ContractReaderPage() {
       <footer className="bg-gradient-to-r from-gray-900 to-black border-t-2 border-white/20 mt-32">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="flex flex-col md:flex-row justify-between items-center">
-            <div className="flex items-center space-x-4 mb-6 md:mb-0">
+            <a href="https://www.xyqo.ai/" target="_blank" rel="noopener noreferrer" className="flex items-center space-x-4 mb-6 md:mb-0 hover:opacity-80 transition-opacity">
               <div className="w-12 h-12 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-2xl flex items-center justify-center shadow-xl">
                 <span className="text-white font-black text-xl">X</span>
               </div>
-              <a href="https://www.xyqo.ai/" target="_blank" rel="noopener noreferrer" className="text-2xl font-black text-white hover:text-cyan-300 transition-colors">YQO</a>
-            </div>
+              <span className="text-2xl font-black text-white">YQO</span>
+            </a>
             <div className="flex flex-col md:flex-row items-center gap-6 text-lg text-white/80">
               <a href="#" className="hover:text-cyan-300 transition-colors font-bold">CGU</a>
               <a href="#" className="hover:text-cyan-300 transition-colors font-bold">Confidentialité</a>
