@@ -786,7 +786,6 @@ export default function ContractReaderPage() {
                       <div>
                         <div className="text-3xl font-black text-white mb-4">DÉPOSEZ VOTRE CONTRAT ICI</div>
                         <div className="text-xl text-white/80 mb-6 font-medium">
-                          ou{' '}
                           <button 
                             onClick={() => fileInputRef.current?.click()} 
                             className="text-cyan-300 hover:text-cyan-100 font-black underline underline-offset-4 transition-colors"
