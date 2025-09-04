@@ -605,7 +605,7 @@ export default function ContractReaderPage() {
               <div className="w-14 h-14 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-2xl flex items-center justify-center shadow-xl">
                 <span className="text-white font-black text-2xl">X</span>
               </div>
-              <h1 className="text-3xl font-black text-white tracking-tight">YQO</h1>
+              <a href="https://www.xyqo.ai/" target="_blank" rel="noopener noreferrer" className="text-3xl font-black text-white tracking-tight hover:text-cyan-300 transition-colors">YQO</a>
             </div>
             
           </div>
@@ -1035,7 +1035,7 @@ export default function ContractReaderPage() {
               <div className="w-12 h-12 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-2xl flex items-center justify-center shadow-xl">
                 <span className="text-white font-black text-xl">X</span>
               </div>
-              <span className="text-2xl font-black text-white">YQO</span>
+              <a href="https://www.xyqo.ai/" target="_blank" rel="noopener noreferrer" className="text-2xl font-black text-white hover:text-cyan-300 transition-colors">YQO</a>
             </div>
             <div className="flex flex-col md:flex-row items-center gap-6 text-lg text-white/80">
               <a href="#" className="hover:text-cyan-300 transition-colors font-bold">CGU</a>
