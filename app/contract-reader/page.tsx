@@ -788,9 +788,10 @@ export default function ContractReaderPage() {
                         <div className="text-xl text-white/80 mb-6 font-medium">
                           <button 
                             onClick={() => fileInputRef.current?.click()} 
-                            className="text-cyan-300 hover:text-cyan-100 font-black underline underline-offset-4 transition-colors"
+                            className="text-cyan-300 hover:text-cyan-100 font-black underline underline-offset-4 transition-colors opacity-0 pointer-events-auto"
+                            aria-label="Parcourir les fichiers"
                           >
-                            PARCOURIR LES FICHIERS
+                            &nbsp;
                           </button>
                         </div>
                         <div className="text-lg text-white/70 font-medium">
