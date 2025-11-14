@@ -1,0 +1,457 @@
+openapi: 3.0.3
+info:
+  title: E-Commerce Platform API
+  description: API for FakePay payment processing and order management
+  version: 1.0.0
+
+servers:
+  - url: https://oyepmayyvoblfwjsoxcg.supabase.co/functions/v1
+    description: Production server
+
+paths:
+  /checkout-place-order:
+    post:
+      summary: Create a new order
+      description: Creates an order with cart items and billing information
+      operationId: placeOrder
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+          description: Unique key to prevent duplicate orders
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - cart_items
+                - billing_address
+                - shipping_address
+              properties:
+                cart_items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      variant_id:
+                        type: string
+                        format: uuid
+                      quantity:
+                        type: integer
+                        minimum: 1
+                billing_address:
+                  $ref: '#/components/schemas/Address'
+                shipping_address:
+                  $ref: '#/components/schemas/Address'
+                coupon_code:
+                  type: string
+      responses:
+        '201':
+          description: Order created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  order_id:
+                    type: string
+                    format: uuid
+                  order_number:
+                    type: string
+                  total_ttc:
+                    type: number
+
+  /payments-authorize:
+    post:
+      summary: Authorize a payment
+      description: Authorizes payment for an order using FakePay
+      operationId: authorizePayment
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - order_id
+              properties:
+                order_id:
+                  type: string
+                  format: uuid
+                card_mode:
+                  type: string
+                  enum: [approved, declined, 3ds_required, error]
+                  default: approved
+                  description: Simulated card behavior
+      responses:
+        '200':
+          description: Payment authorized
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/PaymentAuthorized'
+                  - $ref: '#/components/schemas/Payment3DS'
+
+  /payments-capture:
+    post:
+      summary: Capture an authorized payment
+      description: Captures funds from an authorized payment
+      operationId: capturePayment
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - payment_id
+              properties:
+                payment_id:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Payment captured
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  payment_id:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    enum: [captured]
+                  invoice_number:
+                    type: string
+
+  /payments-refund:
+    post:
+      summary: Refund a payment
+      description: Issues a full or partial refund for a captured payment
+      operationId: refundPayment
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - payment_id
+              properties:
+                payment_id:
+                  type: string
+                  format: uuid
+                amount:
+                  type: number
+                  description: Amount to refund (omit for full refund)
+      responses:
+        '200':
+          description: Payment refunded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  payment_id:
+                    type: string
+                    format: uuid
+                  status:
+                    type: string
+                    enum: [refunded]
+                  refund_amount:
+                    type: number
+                  credit_note_number:
+                    type: string
+
+  /fakepay-confirm-3ds:
+    get:
+      summary: Complete 3DS authentication
+      description: Simulated 3DS challenge completion endpoint
+      operationId: confirm3DS
+      parameters:
+        - name: order_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: success
+          in: query
+          schema:
+            type: boolean
+            default: true
+      responses:
+        '200':
+          description: 3DS challenge page (HTML)
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /fakepay-webhook:
+    post:
+      summary: Receive FakePay webhooks
+      description: Endpoint for receiving payment event webhooks
+      operationId: receiveWebhook
+      parameters:
+        - name: X-Fakepay-Signature
+          in: header
+          required: true
+          schema:
+            type: string
+          description: HMAC-SHA256 signature
+        - name: X-Fakepay-Timestamp
+          in: header
+          required: true
+          schema:
+            type: string
+          description: Unix timestamp in milliseconds
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/WebhookPaymentAuthorized'
+                - $ref: '#/components/schemas/WebhookPaymentCaptured'
+                - $ref: '#/components/schemas/WebhookPaymentRefunded'
+                - $ref: '#/components/schemas/WebhookPaymentFailed'
+      responses:
+        '200':
+          description: Webhook received
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  received:
+                    type: boolean
+
+  /webhooks-replay/{id}:
+    post:
+      summary: Replay a webhook
+      description: Admin endpoint to replay a stored webhook event
+      operationId: replayWebhook
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Webhook replayed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  webhook_id:
+                    type: string
+                    format: uuid
+                  replay_count:
+                    type: integer
+
+  /healthz:
+    get:
+      summary: Health check
+      description: Returns the health status of the API
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Address:
+      type: object
+      required:
+        - firstName
+        - lastName
+        - email
+        - street
+        - city
+        - postalCode
+        - country
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        street:
+          type: string
+        city:
+          type: string
+        postalCode:
+          type: string
+        country:
+          type: string
+
+    PaymentAuthorized:
+      type: object
+      properties:
+        payment_id:
+          type: string
+          format: uuid
+        provider_payment_id:
+          type: string
+        status:
+          type: string
+          enum: [authorized, failed]
+        order_id:
+          type: string
+          format: uuid
+
+    Payment3DS:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [3ds_required]
+        challenge_url:
+          type: string
+          format: uri
+        order_id:
+          type: string
+          format: uuid
+
+    WebhookPaymentAuthorized:
+      type: object
+      properties:
+        event:
+          type: string
+          enum: [payment.authorized]
+        payment_id:
+          type: string
+        order_id:
+          type: string
+          format: uuid
+        amount:
+          type: number
+        currency:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    WebhookPaymentCaptured:
+      type: object
+      properties:
+        event:
+          type: string
+          enum: [payment.captured]
+        payment_id:
+          type: string
+        order_id:
+          type: string
+          format: uuid
+        amount:
+          type: number
+        currency:
+          type: string
+        invoice_number:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    WebhookPaymentRefunded:
+      type: object
+      properties:
+        event:
+          type: string
+          enum: [payment.refunded]
+        payment_id:
+          type: string
+        order_id:
+          type: string
+          format: uuid
+        amount:
+          type: number
+        currency:
+          type: string
+        credit_note_number:
+          type: string
+        is_partial:
+          type: boolean
+        timestamp:
+          type: string
+          format: date-time
+
+    WebhookPaymentFailed:
+      type: object
+      properties:
+        event:
+          type: string
+          enum: [payment.failed]
+        payment_id:
+          type: string
+        order_id:
+          type: string
+          format: uuid
+        amount:
+          type: number
+        currency:
+          type: string
+        error:
+          type: string
+        timestamp:
+          type: string
+          format: date-time

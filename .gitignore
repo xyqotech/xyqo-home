@@ -13,3 +13,4 @@ out/
 *.log
 coverage/
 node_modules
+..bfg-report/
