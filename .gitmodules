@@ -1,0 +1,3 @@
+[submodule "apps/b2bShop"]
+	path = apps/b2bShop
+	url = https://github.com/xyqotech/lovable-nexus-commerce

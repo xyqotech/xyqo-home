@@ -4,7 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "npm run build:b2bshop",
     "build": "next build",
+    "build:b2bshop": "npm --prefix apps/b2bShop ci && npm --prefix apps/b2bShop run build && rm -rf public/b2bShop && mkdir -p public/b2bShop && cp -R apps/b2bShop/dist/* public/b2bShop/",
     "start": "next start",
     "lint": "next lint",
     "vercel-build": "next build"
